@@ -1,0 +1,16 @@
+<Config>
+  <TimeZone>Pacific Standard Time</TimeZone>
+  <RemoveApps>
+    <App>Microsoft.BingWeather</App>
+    <App>Microsoft.DesktopAppInstaller</App>
+    <App>Microsoft.Getstarted</App>
+    <App>Microsoft.Messaging</App>
+    <App>Microsoft.MicrosoftOfficeHub</App>
+    <App>Microsoft.MicrosoftSolitaireCollection</App>
+    <App>Microsoft.OneConnect</App>
+    <App>Microsoft.SkypeApp</App>
+    <App>microsoft.windowscommunicationsapps</App>
+    <App>Microsoft.WindowsFeedbackHub</App>
+    <App>Microsoft.XboxApp</App>
+  </RemoveApps>
+</Config>
