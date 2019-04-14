@@ -24,10 +24,10 @@
   <ItemGroup>
     <Content Include="Autopilot.theme" />
     <Content Include="Autopilot.jpg" />
-    <Content Include="AutopilotConfigurationFile.json" />
     <Content Include="Branding.ps1" />
     <Content Include="Config.xml" />
     <Content Include="Layout.xml" />
+    <Content Include="Make.cmd" />
     <Content Include="packages.config" />
   </ItemGroup>
   <ItemGroup>

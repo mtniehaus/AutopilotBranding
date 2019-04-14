@@ -5,12 +5,22 @@
     <App>Microsoft.DesktopAppInstaller</App>
     <App>Microsoft.Getstarted</App>
     <App>Microsoft.Messaging</App>
+    <App>Microsoft.Microsoft3DViewer</App>
     <App>Microsoft.MicrosoftOfficeHub</App>
     <App>Microsoft.MicrosoftSolitaireCollection</App>
+    <App>Microsoft.MixedReality.Portal</App>
+    <App>Microsoft.MSPaint</App>
     <App>Microsoft.OneConnect</App>
+    <App>Microsoft.Print3D</App>
     <App>Microsoft.SkypeApp</App>
     <App>microsoft.windowscommunicationsapps</App>
     <App>Microsoft.WindowsFeedbackHub</App>
     <App>Microsoft.XboxApp</App>
+    <App>Microsoft.YourPhone</App>
+    <App>Microsoft.ZuneMusic</App>
+    <App>Microsoft.ZuneVideo</App>
   </RemoveApps>
+  <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=860984</OneDriveSetup>
+  <!-- Production rolling out <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=860984</OneDriveSetup> -->
+  <!-- Production <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup> -->
 </Config>

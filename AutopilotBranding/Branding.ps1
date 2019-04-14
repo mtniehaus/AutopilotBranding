@@ -38,6 +38,17 @@ $config.Config.RemoveApps.App | % {
 	}
 }
 
-# STEP 5: Copy AutopilotConfigurationFile.json to configure forced enrollment, language
-MkDir "C:\Windows\Provisioning\Autopilot" -Force | Out-Null
-Copy-Item "$installFolder\AutopilotConfigurationFile.json" "C:\Windows\Provisioning\Autopilot\AutoPilotConfigurationFile.json" -Force
+# STEP 5: Install OneDrive per machine
+if ($config.Config.OneDriveSetup) {
+	Write-Host "Downloading OneDriveSetup"
+	$dest = "$($env:TEMP)\OneDriveSetup.exe"
+	$client = new-object System.Net.WebClient
+	$client.DownloadFile($config.Config.OneDriveSetup, $dest)
+	Write-Host "Installing: $dest"
+	$proc = Start-Process $dest -ArgumentList "/allusers" -WindowStyle Hidden -PassThru
+	$proc.WaitForExit()
+	Write-Host "OneDriveSetup exit code: $($proc.ExitCode)"
+}
+
+# STEP 6: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
+reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 | Out-Host
