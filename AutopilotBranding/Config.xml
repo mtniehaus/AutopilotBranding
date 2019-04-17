@@ -23,4 +23,17 @@
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=860984</OneDriveSetup>
   <!-- Production rolling out <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=860984</OneDriveSetup> -->
   <!-- Production <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup> -->
+  <AddFeatures>
+    <!-- If you do add a language pack, make sure you add these language add-ons for each one.
+    <Feature>Language.Basic~~~es-ES~0.0.1.0</Feature>
+    <Feature>Language.Fonts.PanEuropeanSupplementalFonts~~~~0.0.1.0</Feature>
+    <Feature>Language.Handwriting~~~es-ES~0.0.1.0</Feature>
+    <Feature>Language.OCR~~~es-ES~0.0.1.0</Feature>
+    <Feature>Language.Speech~~~es-ES~0.0.1.0</Feature>
+    <Feature>Language.TextToSpeech~~~es-ES~0.0.1.0</Feature>
+    -->
+    <Feature>NetFX3~~~~</Feature>
+  </AddFeatures>
+  <Language></Language>
+  <!-- If you want to set a language, customize and reference this file: <Language>Language.xml</Language> -->
 </Config>

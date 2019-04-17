@@ -52,3 +52,21 @@ if ($config.Config.OneDriveSetup) {
 
 # STEP 6: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 | Out-Host
+
+# STEP 7: Add language packs
+Get-ChildItem "$($installFolder)LPs" -Filter *.cab | % {
+	Write-Host "Adding language pack: $($_.FullName)"
+	Add-WindowsPackage -Online -NoRestart -PackagePath $_.FullName
+}
+
+# STEP 8: Change language
+if ($config.Config.Language) {
+	Write-Host "Configuring language using: $($config.Config.Language)"
+	& $env:SystemRoot\System32\control.exe "intl.cpl,,/f:`"$($installFolder)$($config.Config.Language)`""
+}
+
+# STEP 9: Add features on demand
+$config.Config.AddFeatures.Feature | % {
+	Write-Host "Adding feature: $_"
+	Add-WindowsCapability -Online -Name $_
+}

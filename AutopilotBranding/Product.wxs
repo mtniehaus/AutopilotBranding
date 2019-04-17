@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"  xmlns:powershell="http://schemas.gardiner.net.au/PowerShellWixExtensionSchema">
-	<Product Id="*" Name="AutopilotBranding" Language="1033" Version="1.0.0.12" Manufacturer="Microsoft" UpgradeCode="a2f0bd43-1dd1-4288-8182-84e2fd5ec694">
-		<Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" Platform="x64" />
+	<Product Id="*" Name="AutopilotBranding" Language="1033" Version="1.0.0.16" Manufacturer="Microsoft" UpgradeCode="a2f0bd43-1dd1-4288-8182-84e2fd5ec694">
+		<Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
 
 		<MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
 		<MediaTemplate EmbedCab="yes" />
 
 		<Feature Id="ProductFeature" Title="AutopilotBranding" Level="1">
 			<ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="LPs"/>
 		</Feature>
     <InstallExecuteSequence>
       <Custom Action="PowerShellScriptsElevatedDeferred" After="RegisterUser">NOT Installed</Custom>
@@ -20,8 +21,10 @@
 	<Fragment>
 		<Directory Id="TARGETDIR" Name="SourceDir">
 			<Directory Id="ProgramFiles64Folder">
-				<Directory Id="INSTALLFOLDER" Name="AutopilotBranding" />
-			</Directory>
+        <Directory Id="INSTALLFOLDER" Name="AutopilotBranding">
+          <Directory Id="LPFOLDER" Name="LPs" />
+        </Directory>
+      </Directory>
 		</Directory>
 	</Fragment>
 
@@ -31,6 +34,7 @@
         <File Id="BrandingPS1" Source="Branding.ps1" KeyPath="yes" />
         <File Id="ConfigXML" Source="Config.xml" />
         <File Id="LayoutXML" Source="Layout.xml" />
+        <File Id="LanguageXML" Source="Language.xml" />
         <File Id="AutopilotTheme" Source="Autopilot.theme" />
         <File Id="AutopilotJPG" Source="Autopilot.jpg" />
       </Component>
