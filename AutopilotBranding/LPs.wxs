@@ -5,9 +5,6 @@
     </Fragment>
     <Fragment>
         <ComponentGroup Id="LPs">
-            <Component Id="cmpA26504B0899AF8B162A2C98517E48F2F" Directory="LPFOLDER" Guid="*">
-                <File Id="fil989B2BAC1C43B458F4B2FC953C3072AA" KeyPath="yes" Source="SourceDir\Microsoft-Windows-Client-Language-Pack_x64_es-es.cab" />
-            </Component>
             <Component Id="cmp6EBD4218003809B71EB478538FB349EF" Directory="LPFOLDER" Guid="*">
                 <File Id="filB02EE7E9ABF049D80A84ABD2B1C12D58" KeyPath="yes" Source="SourceDir\readme.txt" />
             </Component>
