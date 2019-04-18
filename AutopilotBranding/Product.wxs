@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"  xmlns:powershell="http://schemas.gardiner.net.au/PowerShellWixExtensionSchema">
-	<Product Id="*" Name="AutopilotBranding" Language="1033" Version="1.0.0.16" Manufacturer="Microsoft" UpgradeCode="a2f0bd43-1dd1-4288-8182-84e2fd5ec694">
+	<Product Id="*" Name="AutopilotBranding" Language="1033" Version="1.0.0.19" Manufacturer="Microsoft" UpgradeCode="a2f0bd43-1dd1-4288-8182-84e2fd5ec694">
 		<Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
 
 		<MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
@@ -35,6 +35,7 @@
         <File Id="ConfigXML" Source="Config.xml" />
         <File Id="LayoutXML" Source="Layout.xml" />
         <File Id="LanguageXML" Source="Language.xml" />
+        <File Id="AssociationsXML" Source="Associations.xml" />
         <File Id="AutopilotTheme" Source="Autopilot.theme" />
         <File Id="AutopilotJPG" Source="Autopilot.jpg" />
       </Component>

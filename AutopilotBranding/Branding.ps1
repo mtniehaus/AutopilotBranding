@@ -70,3 +70,9 @@ $config.Config.AddFeatures.Feature | % {
 	Write-Host "Adding feature: $_"
 	Add-WindowsCapability -Online -Name $_
 }
+
+# STEP 10: Customize default apps
+if ($config.Config.DefaultApps) {
+	Write-Host "Setting default apps: $($config.Config.DefaultApps)"
+	& Dism.exe /Online /Import-DefaultAppAssociations:`"$($installFolder)$($config.Config.DefaultApps)`"
+}

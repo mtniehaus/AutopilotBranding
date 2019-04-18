@@ -36,4 +36,5 @@
   </AddFeatures>
   <Language></Language>
   <!-- If you want to set a language, customize and reference this file: <Language>Language.xml</Language> -->
+  <DefaultApps>Associations.xml</DefaultApps>
 </Config>
