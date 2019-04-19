@@ -20,9 +20,7 @@
     <App>Microsoft.ZuneMusic</App>
     <App>Microsoft.ZuneVideo</App>
   </RemoveApps>
-  <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=860984</OneDriveSetup>
-  <!-- Production rolling out <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=860984</OneDriveSetup> -->
-  <!-- Production <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup> -->
+  <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
   <AddFeatures>
     <!-- If you do add a language pack, make sure you add these language add-ons for each one.
     <Feature>Language.Basic~~~es-ES~0.0.1.0</Feature>
