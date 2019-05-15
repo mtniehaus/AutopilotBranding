@@ -25,7 +25,7 @@ reg.exe unload HKLM\TempUser | Out-Host
 # STEP 3: Set time zone (if specified)
 if ($config.Config.TimeZone) {
 	Write-Host "Setting time zone: $($config.Config.TimeZone)"
-	Set-Timezone -Name $config.Config.TimeZone
+	Set-Timezone -Id $config.Config.TimeZone
 }
 
 # STEP 4: Remove specified provisioned apps if they exist
