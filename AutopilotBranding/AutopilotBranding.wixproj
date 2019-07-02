@@ -30,6 +30,7 @@
     <Content Include="Branding.ps1" />
     <Content Include="Config.xml" />
     <Content Include="Associations.xml" />
+    <Content Include="Contoso.bmp" />
     <Content Include="Language.xml" />
     <Content Include="Layout.xml" />
     <Content Include="Make.cmd" />

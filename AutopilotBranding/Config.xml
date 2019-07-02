@@ -37,4 +37,11 @@
   <DefaultApps>Associations.xml</DefaultApps>
   <RegisteredOwner>Autopilot User</RegisteredOwner>
   <RegisteredOrganization>Contoso</RegisteredOrganization>
+  <OEMInfo>
+    <Manufacturer>Contoso</Manufacturer>
+    <Logo>Contoso.bmp</Logo>
+    <SupportPhone>+1 800-555-1212</SupportPhone>
+    <SupportHours>8am-5pm PST</SupportHours>
+    <SupportURL>http://www.contoso.com</SupportURL>
+  </OEMInfo>
 </Config>
