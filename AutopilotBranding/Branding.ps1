@@ -91,3 +91,11 @@ if ($config.Config.OEMInfo)
 	Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 | Out-Host
 }
+
+# STEP 13: Enable UE-V
+Enable-UEV
+Set-UevConfiguration -Computer -SettingsStoragePath "%OneDriveCommercial%\UEV" -SyncMethod External -DisableWaitForSyncOnLogon
+Get-ChildItem "$($installFolder)UEV" -Filter *.xml | % {
+	Write-Host "Registering template: $($_.FullName)"
+	Register-UevTemplate -Path $_.FullName
+}

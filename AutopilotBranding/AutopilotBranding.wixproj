@@ -13,7 +13,7 @@
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
     <DefineConstants>Debug</DefineConstants>
-    <LinkerAdditionalOptions>-b LPs</LinkerAdditionalOptions>
+    <LinkerAdditionalOptions>-b LPs -b UEV</LinkerAdditionalOptions>
     <CompilerAdditionalOptions>-arch x64</CompilerAdditionalOptions>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
@@ -23,6 +23,7 @@
   <ItemGroup>
     <Compile Include="LPs.wxs" />
     <Compile Include="Product.wxs" />
+    <Compile Include="UEV.wxs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Autopilot.theme" />
@@ -48,7 +49,8 @@
     <Error Text="The WiX Toolset v3.11 (or newer) build tools must be installed to build this project. To download the WiX Toolset, see http://wixtoolset.org/releases/" />
   </Target>
   <PropertyGroup>
-    <PreBuildEvent>"%25Wix%25\bin\heat.exe" dir $(ProjectDir)\LPs -cg LPs -ag -srd -dr LPFOLDER -out $(ProjectDir)\LPs.wxs</PreBuildEvent>
+    <PreBuildEvent>"%25Wix%25\bin\heat.exe" dir $(ProjectDir)\LPs -cg LPs -ag -srd -dr LPFOLDER -out $(ProjectDir)\LPs.wxs
+"%25Wix%25\bin\heat.exe" dir $(ProjectDir)\UEV -cg UEV -ag -srd -dr UEVFOLDER -out $(ProjectDir)\UEV.wxs</PreBuildEvent>
   </PropertyGroup>
   <!--
 	To modify your build process, add your task inside one of the targets below and uncomment it.
