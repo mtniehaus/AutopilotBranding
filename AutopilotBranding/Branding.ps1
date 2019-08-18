@@ -2,6 +2,13 @@ param(
 	$installFolder
 )
 
+# Transcript for logging/troubleshooting
+$stampDate = Get-Date
+New-Item -Path "C:\Temp\Logs\AutoPilot" -ItemType Directory -Force
+$LogTempDir = "C:\Temp\Logs\AutoPilot"
+$transcriptName = $LogTempDir + "\AutoPilot_" + $stampDate.ToFileTimeUtc() + ".log"
+Start-Transcript -Path $transcriptName -NoClobber
+
 # PREP: Load the Config.xml
 Write-Host "Install folder: $installFolder"
 Write-Host "Loading configuration: $($installFolder)Config.xml"
