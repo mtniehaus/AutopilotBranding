@@ -99,3 +99,6 @@ Get-ChildItem "$($installFolder)UEV" -Filter *.xml | % {
 	Write-Host "Registering template: $($_.FullName)"
 	Register-UevTemplate -Path $_.FullName
 }
+
+# STEP 14: Disable network location fly-out
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f
