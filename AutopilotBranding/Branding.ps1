@@ -66,9 +66,22 @@ if ($config.Config.Language) {
 }
 
 # STEP 9: Add features on demand
+$currentWU = (Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction Ignore).UseWuServer
+if ($currentWU -eq 1)
+{
+	Write-Host "Turning off WSUS"
+	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 0
+	Restart-Service wuauserv
+}
 $config.Config.AddFeatures.Feature | % {
 	Write-Host "Adding feature: $_"
 	Add-WindowsCapability -Online -Name $_
+}
+if ($currentWU -eq 1)
+{
+	Write-Host "Turning on WSUS"
+	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 1
+	Restart-Service wuauserv
 }
 
 # STEP 10: Customize default apps
