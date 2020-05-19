@@ -1,8 +1,25 @@
-param(
-	$installFolder
-)
+# If we are running as a 32-bit process on an x64 system, re-launch as a 64-bit process
+if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64")
+{
+    if (Test-Path "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe")
+    {
+        & "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy bypass -NoProfile -File "$PSCommandPath"
+        Exit $lastexitcode
+    }
+}
+
+# Create a tag file just so Intune knows this was installed
+if (-not (Test-Path "$($env:ProgramData)\Microsoft\AutopilotBranding"))
+{
+    Mkdir "$($env:ProgramData)\Microsoft\AutopilotBranding"
+}
+Set-Content -Path "$($env:ProgramData)\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag" -Value "Installed"
+
+# Start logging
+Start-Transcript "$($env:ProgramData)\Microsoft\AutopilotBranding\AutopilotBranding.log"
 
 # PREP: Load the Config.xml
+$installFolder = "$PSScriptRoot\"
 Write-Host "Install folder: $installFolder"
 Write-Host "Loading configuration: $($installFolder)Config.xml"
 [Xml]$config = Get-Content "$($installFolder)Config.xml"
@@ -29,6 +46,7 @@ if ($config.Config.TimeZone) {
 }
 
 # STEP 4: Remove specified provisioned apps if they exist
+Write-Host "Removing specified in-box provisioned apps"
 $apps = Get-AppxProvisionedPackage -online
 $config.Config.RemoveApps.App | % {
 	$current = $_
@@ -51,6 +69,7 @@ if ($config.Config.OneDriveSetup) {
 }
 
 # STEP 6: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
+Write-Host "Turning off (old) Edge desktop shortcut"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 | Out-Host
 
 # STEP 7: Add language packs
@@ -74,7 +93,7 @@ if ($currentWU -eq 1)
 	Restart-Service wuauserv
 }
 $config.Config.AddFeatures.Feature | % {
-	Write-Host "Adding feature: $_"
+	Write-Host "Adding Windows feature: $_"
 	Add-WindowsCapability -Online -Name $_
 }
 if ($currentWU -eq 1)
@@ -91,12 +110,15 @@ if ($config.Config.DefaultApps) {
 }
 
 # STEP 11: Set registered user and organization
+Write-Host "Configuring registered user information"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOwner /t REG_SZ /d "$($config.Config.RegisteredOwner)" /f /reg:64 | Out-Host
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOrganization /t REG_SZ /d "$($config.Config.RegisteredOrganization)" /f /reg:64 | Out-Host
 
 # STEP 12: Configure OEM branding info
 if ($config.Config.OEMInfo)
 {
+	Write-Host "Configuring OEM branding info"
+
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 | Out-Host
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 | Out-Host
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 | Out-Host
@@ -106,6 +128,7 @@ if ($config.Config.OEMInfo)
 }
 
 # STEP 13: Enable UE-V
+Write-Host "Enabling UE-V"
 Enable-UEV
 Set-UevConfiguration -Computer -SettingsStoragePath "%OneDriveCommercial%\UEV" -SyncMethod External -DisableWaitForSyncOnLogon
 Get-ChildItem "$($installFolder)UEV" -Filter *.xml | % {
@@ -114,4 +137,7 @@ Get-ChildItem "$($installFolder)UEV" -Filter *.xml | % {
 }
 
 # STEP 14: Disable network location fly-out
+Write-Host "Turning off network location fly-out"
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f
+
+Stop-Transcript
