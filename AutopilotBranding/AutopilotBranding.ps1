@@ -140,4 +140,8 @@ Get-ChildItem "$($installFolder)UEV" -Filter *.xml | % {
 Write-Host "Turning off network location fly-out"
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f
 
+# STEP 15: Disable new Edge desktop icon
+Write-Host "Turning off Edge desktop icon"
+reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 | Out-Host
+
 Stop-Transcript
