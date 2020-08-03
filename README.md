@@ -1,6 +1,6 @@
 # Autopilot Branding
 
-This repository contains a sample Windows Installer (MSI) definition that can be used to customize Windows 10 devices via Windows Autopilot
+This repository contains a sample PowerShell script that can be packaged into an Intune Win32 app to customize Windows 10 devices via Windows Autopilot
 (although there's no reason it can't be used with other deployment processes, e.g. MDT or ConfigMgr).
 
 ## Capabilities
@@ -20,19 +20,28 @@ These customizations are currently supported:
 
 ## Requirements and Dependencies
 
-This uses the Wix Toolkit 3.x, available for download from http://wixtoolset.org/releases/, to build the MSI.  This must be downloaded and installed separately.
-
-This also uses the PowerShell Wix extension, https://github.com/flcdrg/PowerShellWixExtension.  The necessary components are included in this repository.  (Note that these components are 32-bit only, hence the PowerShell script included in the MSI will run as 32-bit as well.)
+This uses the Micorosft Win32 Content Prep Tool (a.k.a. IntuneWinAppUtil.exe, available from https://github.com/Microsoft/Microsoft-Win32-Content-Prep-Tool) to package the PowerShell script and related files into a .intunewin file that can be uploaded to Intune as a Win32 app. 
 
 ## Building
 
-To build the MSI, make any changes that you want (e.g. changing the list of apps to be removed), set the MSI version in the Product.wxs file, and then build it using the "Make.cmd" file.
+Run the makeapp.cmd file from a command prompt.  (It will not work if you using Terminal.)
 
 ## Using
 
-Add the resulting MSI to Intune, or your deployment tool of choice.  It should be installed per-machine, elevated, before users sign in.  With Windows Autopilot, the Enrollment Status Page should be used (with Windows 10 1803 or higher) so that the machine-targeted MSI installs before any user signs in.
+Add the resulting Win32 app (.intunewin) to Intune.  The installation command line should be:
 
-In the initial version, the "packages" folder wasn't included in the repository, so you could have gotten an error when trying to build the MSI.  Now it's been added to fix that issue.
+powershell.exe -noprofile -executionpolicy bypass -file .\AutopilotBranding.ps1
+
+The uninstall command line should be:
+
+cmd.exe /c del %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag
+
+The detection rule should look for the existence of this file:
+
+Path: %ProgramData%\Microsoft\AutopilotBranding
+File or filder:  AutopilotBranding.msi.tag
+
+See https://oofhours.com/2020/05/18/two-for-one-updated-autopilot-branding-and-update-os-scripts/ for more information.
 
 ## Suggestions?
 
