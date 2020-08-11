@@ -1,5 +1,5 @@
 <Config>
-  <TimeZone>Eastern Standard Time</TimeZone>
+  <TimeZone></TimeZone>
   <RemoveApps>
     <App>Microsoft.BingWeather</App>
     <App>Microsoft.DesktopAppInstaller</App>
