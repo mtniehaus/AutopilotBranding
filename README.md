@@ -39,7 +39,7 @@ cmd.exe /c del %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.ps1.t
 The detection rule should look for the existence of this file:
 
 Path: %ProgramData%\Microsoft\AutopilotBranding
-File or filder:  AutopilotBranding.msi.tag
+File or filder:  AutopilotBranding.ps1.tag
 
 See https://oofhours.com/2020/05/18/two-for-one-updated-autopilot-branding-and-update-os-scripts/ for more information.
 
