@@ -1,4 +1,4 @@
-; Copyright © Microsoft Corp.
+; Copyright ï¿½ Microsoft Corp.
 
 [Theme]
 DisplayName=Autopilot
@@ -41,7 +41,7 @@ DefaultValue=Windows Default
 DefaultValue.MUI=@main.cpl,-1020
 
 [Control Panel\Desktop]
-Wallpaper=%SystemRoot%\web\wallpaper\Autopilot\Autopilot.jpg
+Wallpaper=%SystemRoot%\web\wallpaper\Autopilot\Background.jpg
 TileWallpaper=0
 WallpaperStyle=10
 Pattern=
