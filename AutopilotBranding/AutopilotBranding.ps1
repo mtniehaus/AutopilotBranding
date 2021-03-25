@@ -11,7 +11,7 @@ if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64")
 # Create a tag file just so Intune knows this was installed
 if (-not (Test-Path "$env:ProgramData\Microsoft\AutopilotBranding"))
 {
-    Mkdir "$env:ProgramData\Microsoft\AutopilotBranding"
+    New-Item -ItemType Directory -Path "$env:ProgramData\Microsoft\AutopilotBranding" -Force | Out-Null
 }
 Set-Content -Path "$env:ProgramData\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag" -Value "Installed"
 
@@ -35,20 +35,23 @@ if ($config.Config.StartMenuLayout) {
 # STEP 2: Configure background (if specified)
 if ($config.Config.Theme) {
 	Write-Host "Setting up Autopilot theme"
-	Mkdir "$env:SystemRoot\Resources\OEM Themes" -Force | Out-Null
+	New-Item -ItemType Directory -Path "$env:SystemRoot\Resources\OEM Themes" -Force | Out-Null
 	Copy-Item "$PSScriptRoot\$($config.Config.Theme)" "$env:SystemRoot\Resources\OEM Themes\$($config.Config.Theme)" -Force
-	Mkdir "$env:SystemRoot\web\wallpaper\Autopilot" -Force | Out-Null
+	New-Item -ItemType Directory -Path "$env:SystemRoot\web\wallpaper\Autopilot" -Force | Out-Null
 	Copy-Item "$PSScriptRoot\Background.jpg" "$env:SystemRoot\web\wallpaper\Autopilot\Background.jpg" -Force
 	Write-Host "Setting Autopilot theme as the new user default"
-	reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\$($config.Config.Theme)" /f | Out-Host
+	$path = "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes"
+	Set-ItemProperty -Path $path -Name "InstallTheme" -Type ExpandString -Value "%SystemRoot%\resources\OEM Themes\$($config.Config.Theme)" -Force
 }
 
 # STEP 3: Set time zone (if specified)
 if ($config.Config.TimeZone) {
 	if($config.Config.TimeZone -eq 'Automatic') {
 		# Enable location services so the time zone will be set automatically (even when skipping the privacy page in OOBE) when an administrator signs in
-		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -Name "Value" -Type "String" -Value "Allow" -Force
-		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}" -Name "SensorPermissionState" -Type "DWord" -Value 1 -Force
+		$path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
+		Set-ItemProperty -Path $path -Name "Value" -Type String -Value "Allow" -Force
+		$path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}"
+		Set-ItemProperty -Path $path -Name "SensorPermissionState" -Type DWord -Value 1 -Force
 		Start-Service -Name "lfsvc" -ErrorAction SilentlyContinue
 	} else {
 		Write-Host "Setting time zone: $($config.Config.TimeZone)"
@@ -84,9 +87,11 @@ if ($config.Config.OneDriveSetup) {
 # STEP 6: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
 if($config.Config.DisableEdgeDesktopShortcutCreation -eq 1) {
 	Write-Host "Turning off (old) Edge desktop shortcut"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 | Out-Host
+	$path = "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
+	Set-ItemProperty -Path $path -Name "DisableEdgeDesktopShortcutCreation" -Type DWord -Value 1 -Force
 	Write-Host "Turning off (new) Edge desktop icon"
-	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 | Out-Host
+	$path = "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate"
+	Set-ItemProperty -Path $path -Name "CreateDesktopShortcutDefault" -Type DWord -Value 10 -Force
 }
 
 # STEP 7: Add language packs
@@ -103,11 +108,12 @@ if ($config.Config.Language) {
 
 # STEP 9: Add features on demand
 if($config.Config.AddFeatures.Feature){
-	$currentWU = (Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction Ignore).UseWuServer
+	$path = "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"
+	$currentWU = (Get-ItemProperty -Path $path -ErrorAction Ignore).UseWuServer
 	if ($currentWU -eq 1)
 	{
 		Write-Host "Turning off WSUS"
-		Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 0
+		Set-ItemProperty -Path $path -Name "UseWuServer" -Value 0
 		Restart-Service wuauserv
 	}
 	$config.Config.AddFeatures.Feature | ForEach-Object {
@@ -117,7 +123,7 @@ if($config.Config.AddFeatures.Feature){
 	if ($currentWU -eq 1)
 	{
 		Write-Host "Turning on WSUS"
-		Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 1
+		Set-ItemProperty -Path $path -Name "UseWuServer" -Value 1
 		Restart-Service wuauserv
 	}
 }
@@ -130,21 +136,22 @@ if ($config.Config.DefaultApps) {
 
 # STEP 11: Set registered user and organization
 Write-Host "Configuring registered user information"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOwner /t REG_SZ /d "$($config.Config.RegisteredOwner)" /f /reg:64 | Out-Host
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOrganization /t REG_SZ /d "$($config.Config.RegisteredOrganization)" /f /reg:64 | Out-Host
+$path = "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+Set-ItemProperty -Path $path -Name "RegisteredOwner" -Type String -Value "$($config.Config.RegisteredOwner)" -Force
+Set-ItemProperty -Path $path -Name "RegisteredOrganization" -Type String -Value "$($config.Config.RegisteredOrganization)" -Force
 
 # STEP 12: Configure OEM branding info
 if ($config.Config.OEMInfo)
 {
 	Write-Host "Configuring OEM branding info"
-
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 | Out-Host
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Model /t REG_SZ /d "$($config.Config.OEMInfo.Model)" /f /reg:64 | Out-Host
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 | Out-Host
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 | Out-Host
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportURL /t REG_SZ /d "$($config.Config.OEMInfo.SupportURL)" /f /reg:64 | Out-Host
+	$path = "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
+	Set-ItemProperty -Path $path -Name "Manufacturer" -Type String -Value "$($config.Config.OEMInfo.Manufacturer)" -Force
+	Set-ItemProperty -Path $path -Name "Model" -Type String -Value "$($config.Config.OEMInfo.Model)" -Force
+	Set-ItemProperty -Path $path -Name "SupportPhone" -Type String -Value "$($config.Config.OEMInfo.SupportPhone)" -Force
+	Set-ItemProperty -Path $path -Name "SupportHours" -Type String -Value "$($config.Config.OEMInfo.SupportHours)" -Force
+	Set-ItemProperty -Path $path -Name "SupportURL" -Type String -Value "$($config.Config.OEMInfo.SupportURL)" -Force
 	Copy-Item "$PSScriptRoot\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 | Out-Host
+	Set-ItemProperty -Path $path -Name "Logo" -Type String -Value "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force
 }
 
 # STEP 13: Enable UE-V
@@ -161,7 +168,7 @@ if($config.Config.EnableUEV -eq 1) {
 # STEP 14: Disable network location fly-out
 if($config.Config.NewNetworkWindowOff -eq 1) {
 	Write-Host "Turning off network location fly-out"
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f
+	New-Item -Path "HKLM\SYSTEM\CurrentControlSet\Control\Network\" -Name "NewNetworkWindowOff" -Force
 }
 
 # STEP 15: Set SearchboxTaskbarMode
@@ -170,20 +177,20 @@ if($config.Config.NewNetworkWindowOff -eq 1) {
 # 2: Show Search Box
 if($config.Config.SearchboxTaskbarMode){
 	$path = "HKLM:\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
-	Set-ItemProperty -Path $path -Name "SearchboxTaskbarMode" -Type "DWord" -Value $config.Config.SearchboxTaskbarMode -Force
+	Set-ItemProperty -Path $path -Name "SearchboxTaskbarMode" -Type DWord -Value $config.Config.SearchboxTaskbarMode -Force
 }
 
 # STEP 16: ShowCortanaButton
 if($config.Config.ShowCortanaButton){
 	$path = "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-	Set-ItemProperty -Path $path -Name "ShowCortanaButton" -Type "DWord" -Value $config.Config.ShowCortanaButton -Force
+	Set-ItemProperty -Path $path -Name "ShowCortanaButton" -Type DWord -Value $config.Config.ShowCortanaButton -Force
 }
 
 # STEP 17: ShowTaskViewButton
 if($config.Config.ShowTaskViewButton){
 	reg.exe load HKLM\TempUser "$env:SystemDrive\Users\Default\NTUSER.DAT" | Out-Host
 	$path = "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-	Set-ItemProperty -Path $path -Name "ShowTaskViewButton" -Type "DWord" -Value $config.Config.ShowTaskViewButton -Force
+	Set-ItemProperty -Path $path -Name "ShowTaskViewButton" -Type DWord -Value $config.Config.ShowTaskViewButton -Force
 }
 
 # STEP 18: Delete 3D Objects link from File Explorer
