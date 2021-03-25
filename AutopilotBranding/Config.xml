@@ -5,8 +5,6 @@
   <RemoveApps>
     <App>Microsoft.BingWeather</App>
     <App>Microsoft.DesktopAppInstaller</App>
-    <App>Microsoft.BingWeather</App>
-    <App>Microsoft.DesktopAppInstaller</App>
     <App>Microsoft.Getstarted</App>
     <App>Microsoft.Messaging</App>
     <App>Microsoft.Microsoft3DViewer</App>
