@@ -91,7 +91,11 @@ if($config.Config.DisableEdgeDesktopShortcutCreation -eq 1) {
 	$path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
 	Set-ItemProperty -Path $path -Name "DisableEdgeDesktopShortcutCreation" -Type DWord -Value 1 -Force
 	Write-Host "Turning off (new) Edge desktop icon"
+	#https://docs.microsoft.com/en-us/deployedge/microsoft-edge-update-policies#createdesktopshortcutdefault
 	$path = "HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate"
+	If( -not (Test-Path -Path $path)) {
+		New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft"-Name "EdgeUpdate" -Force | Out-Null
+	}
 	Set-ItemProperty -Path $path -Name "CreateDesktopShortcutDefault" -Type DWord -Value 10 -Force
 }
 
