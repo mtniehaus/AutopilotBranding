@@ -24,11 +24,12 @@ Write-Host "Loading configuration: $PSScriptRoot\Config.xml"
 [Xml]$config = Get-Content "$PSScriptRoot\Config.xml"
 
 #Load the default user registry hive
+Write-Host "Load the default user registry hive"
 reg.exe load HKLM\TempUser "$env:SystemDrive\Users\Default\NTUSER.DAT" | Out-Host
 
-# STEP 1: Apply custom start menu layout
+# STEP 1: Apply custom start menu and taskbar layout
 if ($config.Config.StartMenuLayout) {
-	Write-Host "Importing layout: $PSScriptRoot\$($config.Config.StartMenuLayout)"
+	Write-Host "Importing Start Menu (and Taskbar) layout: $PSScriptRoot\$($config.Config.StartMenuLayout)"
 	Copy-Item "$PSScriptRoot\$($config.Config.StartMenuLayout)" "$env:SystemDrive\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml" -Force
 }
 
@@ -40,7 +41,7 @@ if ($config.Config.Theme) {
 	New-Item -ItemType Directory -Path "$env:SystemRoot\web\wallpaper\Autopilot" -Force | Out-Null
 	Copy-Item "$PSScriptRoot\Background.jpg" "$env:SystemRoot\web\wallpaper\Autopilot\Background.jpg" -Force
 	Write-Host "Setting Autopilot theme as the new user default"
-	$path = "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes"
+	$path = "HKLM:\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes"
 	Set-ItemProperty -Path $path -Name "InstallTheme" -Type ExpandString -Value "%SystemRoot%\resources\OEM Themes\$($config.Config.Theme)" -Force
 }
 
@@ -87,10 +88,10 @@ if ($config.Config.OneDriveSetup) {
 # STEP 6: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
 if($config.Config.DisableEdgeDesktopShortcutCreation -eq 1) {
 	Write-Host "Turning off (old) Edge desktop shortcut"
-	$path = "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
+	$path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
 	Set-ItemProperty -Path $path -Name "DisableEdgeDesktopShortcutCreation" -Type DWord -Value 1 -Force
 	Write-Host "Turning off (new) Edge desktop icon"
-	$path = "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate"
+	$path = "HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate"
 	Set-ItemProperty -Path $path -Name "CreateDesktopShortcutDefault" -Type DWord -Value 10 -Force
 }
 
@@ -136,7 +137,7 @@ if ($config.Config.DefaultApps) {
 
 # STEP 11: Set registered user and organization
 Write-Host "Configuring registered user information"
-$path = "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+$path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
 Set-ItemProperty -Path $path -Name "RegisteredOwner" -Type String -Value "$($config.Config.RegisteredOwner)" -Force
 Set-ItemProperty -Path $path -Name "RegisteredOrganization" -Type String -Value "$($config.Config.RegisteredOrganization)" -Force
 
@@ -144,7 +145,7 @@ Set-ItemProperty -Path $path -Name "RegisteredOrganization" -Type String -Value 
 if ($config.Config.OEMInfo)
 {
 	Write-Host "Configuring OEM branding info"
-	$path = "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
+	$path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
 	Set-ItemProperty -Path $path -Name "Manufacturer" -Type String -Value "$($config.Config.OEMInfo.Manufacturer)" -Force
 	Set-ItemProperty -Path $path -Name "Model" -Type String -Value "$($config.Config.OEMInfo.Model)" -Force
 	Set-ItemProperty -Path $path -Name "SupportPhone" -Type String -Value "$($config.Config.OEMInfo.SupportPhone)" -Force
@@ -168,7 +169,7 @@ if($config.Config.EnableUEV -eq 1) {
 # STEP 14: Disable network location fly-out
 if($config.Config.NewNetworkWindowOff -eq 1) {
 	Write-Host "Turning off network location fly-out"
-	New-Item -Path "HKLM\SYSTEM\CurrentControlSet\Control\Network\" -Name "NewNetworkWindowOff" -Force
+	New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Network\" -Name "NewNetworkWindowOff" -Force
 }
 
 # STEP 15: Set SearchboxTaskbarMode
@@ -188,7 +189,6 @@ if($config.Config.ShowCortanaButton){
 
 # STEP 17: ShowTaskViewButton
 if($config.Config.ShowTaskViewButton){
-	reg.exe load HKLM\TempUser "$env:SystemDrive\Users\Default\NTUSER.DAT" | Out-Host
 	$path = "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 	Set-ItemProperty -Path $path -Name "ShowTaskViewButton" -Type DWord -Value $config.Config.ShowTaskViewButton -Force
 }
@@ -203,6 +203,7 @@ if($config.Config.Delete3DObjectsLink -eq 1) {
 }
 
 #Unload the default user registry hive
+Write-Host "Unload the default user registry hive"
 reg.exe unload HKLM\TempUser | Out-Host
 
 Stop-Transcript
