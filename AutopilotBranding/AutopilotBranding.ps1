@@ -94,9 +94,9 @@ if($config.Config.DisableEdgeDesktopShortcutCreation -eq 1) {
 	#https://docs.microsoft.com/en-us/deployedge/microsoft-edge-update-policies#createdesktopshortcutdefault
 	$path = "HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate"
 	If( -not (Test-Path -Path $path)) {
-		New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft"-Name "EdgeUpdate" -Force | Out-Null
+		New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft"-Name "EdgeUpdate" -Force
 	}
-	Set-ItemProperty -Path $path -Name "CreateDesktopShortcutDefault" -Type DWord -Value 10 -Force
+	Set-ItemProperty -Path $path -Name "CreateDesktopShortcutDefault" -Type DWord -Value 0 -Force
 }
 
 # STEP 7: Add language packs
@@ -182,18 +182,27 @@ if($config.Config.NewNetworkWindowOff -eq 1) {
 # 2: Show Search Box
 if($config.Config.SearchboxTaskbarMode){
 	$path = "HKLM:\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
+	If( -not (Test-Path -Path $path)) {
+		New-Item -Path "HKLM:\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\" -Name "Search" -Force
+	}
 	Set-ItemProperty -Path $path -Name "SearchboxTaskbarMode" -Type DWord -Value $config.Config.SearchboxTaskbarMode -Force
 }
 
 # STEP 16: ShowCortanaButton
 if($config.Config.ShowCortanaButton){
 	$path = "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+	If( -not (Test-Path -Path $path)) {
+		New-Item -Path "HKLM:\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" -Name "Advanced" -Force
+	}
 	Set-ItemProperty -Path $path -Name "ShowCortanaButton" -Type DWord -Value $config.Config.ShowCortanaButton -Force
 }
 
 # STEP 17: ShowTaskViewButton
 if($config.Config.ShowTaskViewButton){
 	$path = "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+	If( -not (Test-Path -Path $path)) {
+		New-Item -Path "HKLM:\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" -Name "Advanced" -Force
+	}
 	Set-ItemProperty -Path $path -Name "ShowTaskViewButton" -Type DWord -Value $config.Config.ShowTaskViewButton -Force
 }
 
