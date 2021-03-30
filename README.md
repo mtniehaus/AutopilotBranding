@@ -8,7 +8,7 @@ This repository contains a sample PowerShell script that can be packaged into an
 These customizations are currently supported:
 
 - Customize start menu and/or taskbar layout.  By default it will apply a simple two-icon layout (similiar to the default one on Windows 10 1903, but without the Office app).
-- Customize the taskbar's search boxmode, cortana button visibility, and taskview button visibility
+- Customize the taskbar's search box mode, cortana button visibility, and taskview button visibility
 - Delete the 3D Objects link from File Explorer
 - Configure background image.  A custom theme is deployed with a background image; the default user profile is then configured to use this theme.  (Note that this won't work if the user is enabled for Enterprise State Roaming and has previously configured a background image.)
 - Set time zone.  The time zone will be set to the specified time zone name (Pacific Standard Time by default).  Use 'Automatic' to allow the timezone to be set automatically.
