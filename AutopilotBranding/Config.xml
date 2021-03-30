@@ -1,7 +1,5 @@
 <Config>
-  <TimeZone></TimeZone>
-
-  <!-- Uncomment to remove apps
+  <TimeZone>Automatic</TimeZone>
   <RemoveApps>
     <App>Microsoft.BingWeather</App>
     <App>Microsoft.DesktopAppInstaller</App>
@@ -22,13 +20,7 @@
     <App>Microsoft.ZuneMusic</App>
     <App>Microsoft.ZuneVideo</App>
   </RemoveApps>
-  -->
-
-  <!-- Uncomment to update OneDrive
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
-  -->
-
-  <!-- If you do add a language pack, make sure you add these language add-ons for each one.
   <AddFeatures>
     <Feature>Language.Basic~~~es-ES~0.0.1.0</Feature>
     <Feature>Language.Fonts.PanEuropeanSupplementalFonts~~~~0.0.1.0</Feature>
@@ -38,17 +30,10 @@
     <Feature>Language.TextToSpeech~~~es-ES~0.0.1.0</Feature>
     <Feature>NetFX3~~~~</Feature> 
   </AddFeatures>
-  -->
-
-  <!-- If you want to set a language, customize Language.xml and reference the file
   <Language>Language.xml</Language>
-  -->
-
   <DefaultApps>Associations.xml</DefaultApps>
-  <RegisteredOwner>Georgia Division</RegisteredOwner>
-  <RegisteredOrganization>The Salvation Army</RegisteredOrganization>
-
-  <!-- Uncomment to modify OEM info
+  <RegisteredOwner>Autopilot User</RegisteredOwner>
+  <RegisteredOrganization>Contoso</RegisteredOrganization>
   <OEMInfo>
     <Manufacturer>Contoso</Manufacturer>
     <Model>PC</Model>
@@ -57,12 +42,7 @@
     <SupportHours>8am-5pm PST</SupportHours>
     <SupportURL>http://www.contoso.com</SupportURL>
   </OEMInfo>
-  -->
-
-  <!-- If you want to set a theme and background, customize Theme.Theme and Background.jpg, and reference Theme.Theme
   <Theme>Theme.Theme</Theme>
-  -->  
-
   <StartMenuLayout>LayoutModification.xml</StartMenuLayout>
   <DisableEdgeDesktopShortcutCreation>1</DisableEdgeDesktopShortcutCreation>
   <EnableUEV>0</EnableUEV>
@@ -71,5 +51,4 @@
   <ShowCortanaButton>0</ShowCortanaButton>
   <ShowTaskViewButton>0</ShowTaskViewButton>
   <Delete3DObjectsLink>1</Delete3DObjectsLink>
-
 </Config>
