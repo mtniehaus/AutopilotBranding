@@ -7,7 +7,7 @@ This repository contains a sample PowerShell script that can be packaged into an
 
 These customizations are currently supported:
 
-- Customize start menu layout.  By default it will apply a simple two-icon layout (similiar to the default one on Windows 10 1903, but without the Office app).
+- Customize start menu layout.  By default it will apply a simple two-icon layout (similiar to the default one on Windows 10 Enterprise 1903).
 - Configure background image.  A custom theme is deployed with a background image; the default user profile is then configured to use this theme.  (Note that this won't work if the user is enabled for Enterprise State Roaming and has previously configured a background image.)
 - Set time zone.  The time zone will be set to the specified time zone name (Pacific Standard Time by default).
 - Remove in-box provisioned apps.  A list of in-box provisioned apps will be removed.
@@ -42,6 +42,10 @@ Path: %ProgramData%\Microsoft\AutopilotBranding
 File or filder:  AutopilotBranding.ps1.tag
 
 See https://oofhours.com/2020/05/18/two-for-one-updated-autopilot-branding-and-update-os-scripts/ for more information.
+
+## Change history
+
+2023-09-23: Added logic to handle the Windows 11 Start menu proces using Start2.bin; Windows 10 will continue to use Layout.xml.  Added additional Windows 11 in-box apps to remove.
 
 ## Suggestions?
 

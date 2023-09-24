@@ -19,6 +19,8 @@
     <App>Microsoft.YourPhone</App>
     <App>Microsoft.ZuneMusic</App>
     <App>Microsoft.ZuneVideo</App>
+    <App>Clipchamp.Clipchamp</App>
+    <App>Microsoft.PowerAutomateDesktop</App>
   </RemoveApps>
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
   <AddFeatures>

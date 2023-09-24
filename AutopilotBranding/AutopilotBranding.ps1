@@ -25,8 +25,15 @@ Write-Host "Loading configuration: $($installFolder)Config.xml"
 [Xml]$config = Get-Content "$($installFolder)Config.xml"
 
 # STEP 1: Apply custom start menu layout
-Write-Host "Importing layout: $($installFolder)Layout.xml"
-Copy-Item "$($installFolder)Layout.xml" "C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml" -Force
+$ci = Get-ComputerInfo
+if ($ci.OsBuildNumber -le 22000) {
+	Write-Host "Importing layout: $($installFolder)Layout.xml"
+	Copy-Item "$($installFolder)Layout.xml" "C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml" -Force
+} else {
+	Write-Host "Importing layout: $($installFolder)Start2.bin"
+	MkDir -Path "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState" -Force -ErrorAction SilentlyContinue
+	Copy-Item "$($installFolder)Start2.bin" "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState\Start2.bin" -Force
+}
 
 # STEP 2: Configure background
 Write-Host "Setting up Autopilot theme"
