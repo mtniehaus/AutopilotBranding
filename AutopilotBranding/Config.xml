@@ -1,8 +1,10 @@
 <Config>
   <TimeZone></TimeZone>
   <RemoveApps>
+    <App>Microsoft.BingNews</App>
     <App>Microsoft.BingWeather</App>
     <App>Microsoft.DesktopAppInstaller</App>
+    <App>Microsoft.GamingApp</App>
     <App>Microsoft.Getstarted</App>
     <App>Microsoft.Messaging</App>
     <App>Microsoft.Microsoft3DViewer</App>
@@ -11,10 +13,12 @@
     <App>Microsoft.MixedReality.Portal</App>
     <App>Microsoft.MSPaint</App>
     <App>Microsoft.OneConnect</App>
+    <App>Microsoft.People</App>
     <App>Microsoft.Print3D</App>
     <App>Microsoft.SkypeApp</App>
     <App>microsoft.windowscommunicationsapps</App>
     <App>Microsoft.WindowsFeedbackHub</App>
+    <App>Microsoft.WindowsMaps</App>
     <App>Microsoft.XboxApp</App>
     <App>Microsoft.YourPhone</App>
     <App>Microsoft.ZuneMusic</App>
@@ -32,7 +36,10 @@
     <Feature>Language.Speech~~~es-ES~0.0.1.0</Feature>
     <Feature>Language.TextToSpeech~~~es-ES~0.0.1.0</Feature>
     -->
+    <!-- If you want .NET 3.5, uncomment this one.
     <Feature>NetFX3~~~~</Feature>
+    -->
+    <Feature>WMIC</Feature>
   </AddFeatures>
   <Language></Language>
   <!-- If you want to set a language, customize and reference this file: <Language>Language.xml</Language> -->
