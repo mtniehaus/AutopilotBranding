@@ -47,6 +47,7 @@ See https://oofhours.com/2020/05/18/two-for-one-updated-autopilot-branding-and-u
 
 2023-09-23: Added logic to handle the Windows 11 Start menu proces using Start2.bin; Windows 10 will continue to use Layout.xml.  Added additional Windows 11 in-box apps to remove.
 2024-01-31: Added additional apps to remove, adding timestamps to log messages, cleaned up error logging.
+2024-04-27: Added logic to stop the Start menu from popping up each time a new user signs in.
 
 ## Suggestions?
 
