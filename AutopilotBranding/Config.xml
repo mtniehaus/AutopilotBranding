@@ -28,6 +28,7 @@
   </RemoveApps>
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
   <AddFeatures>
+    <Feature>Microsoft.Windows.Sense.Client~~~~</Feature>
     <!-- If you do add a language pack, make sure you add these language add-ons for each one.
     <Feature>Language.Basic~~~es-ES~0.0.1.0</Feature>
     <Feature>Language.Fonts.PanEuropeanSupplementalFonts~~~~0.0.1.0</Feature>
