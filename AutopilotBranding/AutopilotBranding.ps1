@@ -19,15 +19,17 @@ if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64")
     }
 }
 
-# Create a tag file just so Intune knows this was installed
+# Create output folder
 if (-not (Test-Path "$($env:ProgramData)\Microsoft\AutopilotBranding"))
 {
-    Mkdir "$($env:ProgramData)\Microsoft\AutopilotBranding"
+    Mkdir "$($env:ProgramData)\Microsoft\AutopilotBranding" -Force
 }
-Set-Content -Path "$($env:ProgramData)\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag" -Value "Installed"
 
 # Start logging
 Start-Transcript "$($env:ProgramData)\Microsoft\AutopilotBranding\AutopilotBranding.log"
+
+# Creating tag file
+Set-Content -Path "$($env:ProgramData)\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag" -Value "Installed"
 
 # PREP: Load the Config.xml
 $installFolder = "$PSScriptRoot\"
