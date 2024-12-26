@@ -42,6 +42,18 @@
     -->
     <Feature>WMIC</Feature>
   </AddFeatures>
+  <!-- This section defines a list of Optional Features to disable. Add the Name of the feature as returned by Get-WindowsOptionalFeature -->
+  <DisableOptionalFeatures>
+    <Feature>MicrosoftWindowsPowershellV2Root</Feature>
+    <Feature>WorkFolders-Client</Feature>
+    <Feature>Recall</Feature>
+    <Feature>MediaPlayback</Feature>
+  </DisableOptionalFeatures>
+  <!-- This section defines a list of Windows Capabilities to remove. Provide the name of the Capability to have it removed as returned by Get-WindowsCapability, excluding the tildes and version.  -->
+  <RemoveCapability>
+    <Capability>App.StepsRecorder</Capability>
+    <Capability>Microsoft.Windows.PowerShell.ISE</Capability>
+  </RemoveCapability>
   <Language></Language>
   <!-- If you want to set a language, customize and reference this file: <Language>Language.xml</Language> -->
   <DefaultApps>Associations.xml</DefaultApps>

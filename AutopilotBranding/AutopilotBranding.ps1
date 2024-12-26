@@ -124,7 +124,7 @@ if ($config.Config.Language) {
 	& $env:SystemRoot\System32\control.exe "intl.cpl,,/f:`"$($installFolder)$($config.Config.Language)`""
 }
 
-# STEP 9: Add features on demand
+# STEP 9: Add features on demand, Disable Optional Features, Remove Windows Capabilities
 $currentWU = (Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction Ignore).UseWuServer
 if ($currentWU -eq 1)
 {
@@ -132,6 +132,7 @@ if ($currentWU -eq 1)
 	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 0
 	Restart-Service wuauserv
 }
+# Step 9A: Add features on demand
 if ($config.Config.AddFeatures.Feature.Count -gt 0)
 {
 	$config.Config.AddFeatures.Feature | % {
@@ -139,6 +140,29 @@ if ($config.Config.AddFeatures.Feature.Count -gt 0)
 		Add-WindowsCapability -Online -Name $_ -ErrorAction SilentlyContinue | Out-Null
 	}
 }
+# Step 9B: Disable Optional features
+if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0)
+{
+	$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object {$_.State -eq "Enabled"}
+	foreach ($EnabledFeature in $EnabledOptionalFeatures) {
+		if ($config.Config.DisableOptionalFeatures.Feature -contains $EnabledFeature.FeatureName) {
+			Log "Disabling Optional Feature:  $($EnabledFeature.FeatureName)"
+			Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart | Out-Null
+		}
+	}
+}
+# Step 9C: Remove Windows Capabilities
+if ($config.Config.RemoveCapability.Capability.Count -gt 0)
+{
+	$InstalledCapabilities = Get-WindowsCapability -Online | Where-Object {$_.State -eq "Installed"}
+	foreach ($InstalledCapability in $InstalledCapabilities) {
+		if ($config.Config.RemoveCapability.Capability -contains $InstalledCapability.Name.Split("~")[0]) {
+			Log "Removing Windows Capability:  $($InstalledCapability.Name)"
+			Remove-WindowsCapability -Online -Name $InstalledCapability.Name  | Out-Null
+		}
+	}
+}
+
 if ($currentWU -eq 1)
 {
 	Log "Turning on WSUS"
