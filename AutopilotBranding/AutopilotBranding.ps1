@@ -65,6 +65,10 @@ reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Ad
 # STEP 2B: Hide "Learn more about this picture" from the desktop
 reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f | Out-Host
 
+# STEP 3C: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828
+Log "Disabling Windows Spotlight for Desktop"
+reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f | Out-Host
+
 reg.exe unload HKLM\TempUser | Out-Host
 
 # STEP 3: Set time zone (if specified)
