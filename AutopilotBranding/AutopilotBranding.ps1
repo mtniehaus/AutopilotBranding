@@ -73,6 +73,10 @@ reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Ad
 # STEP 2B: Hide "Learn more about this picture" from the desktop
 reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f | Out-Host
 
+# STEP 3C: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828
+Log "Disabling Windows Spotlight for Desktop"
+reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f | Out-Host
+
 reg.exe unload HKLM\TempUser | Out-Host
 
 # STEP 3: Set time zone (if specified)
@@ -128,7 +132,7 @@ if ($config.Config.Language) {
 	& $env:SystemRoot\System32\control.exe "intl.cpl,,/f:`"$($installFolder)$($config.Config.Language)`""
 }
 
-# STEP 9: Add features on demand
+# STEP 9: Add features on demand, Disable Optional Features, Remove Windows Capabilities
 $currentWU = (Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction Ignore).UseWuServer
 if ($currentWU -eq 1)
 {
@@ -136,6 +140,7 @@ if ($currentWU -eq 1)
 	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 0
 	Restart-Service wuauserv
 }
+# Step 9A: Add features on demand
 if ($config.Config.AddFeatures.Feature.Count -gt 0)
 {
 	$config.Config.AddFeatures.Feature | % {
@@ -143,6 +148,29 @@ if ($config.Config.AddFeatures.Feature.Count -gt 0)
 		Add-WindowsCapability -Online -Name $_ -ErrorAction SilentlyContinue | Out-Null
 	}
 }
+# Step 9B: Disable Optional features
+if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0)
+{
+	$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object {$_.State -eq "Enabled"}
+	foreach ($EnabledFeature in $EnabledOptionalFeatures) {
+		if ($config.Config.DisableOptionalFeatures.Feature -contains $EnabledFeature.FeatureName) {
+			Log "Disabling Optional Feature:  $($EnabledFeature.FeatureName)"
+			Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart | Out-Null
+		}
+	}
+}
+# Step 9C: Remove Windows Capabilities
+if ($config.Config.RemoveCapability.Capability.Count -gt 0)
+{
+	$InstalledCapabilities = Get-WindowsCapability -Online | Where-Object {$_.State -eq "Installed"}
+	foreach ($InstalledCapability in $InstalledCapabilities) {
+		if ($config.Config.RemoveCapability.Capability -contains $InstalledCapability.Name.Split("~")[0]) {
+			Log "Removing Windows Capability:  $($InstalledCapability.Name)"
+			Remove-WindowsCapability -Online -Name $InstalledCapability.Name  | Out-Null
+		}
+	}
+}
+
 if ($currentWU -eq 1)
 {
 	Log "Turning on WSUS"

@@ -15,6 +15,8 @@ These customizations are currently supported:
 - Disable the Edge desktop icon.  When using OneDrive Known Folder Move, this can cause duplicate (and unnecessary) shortcuts to be synced.
 - Install language packs.  You can embed language pack CAB files into the MSI (place them into the LPs folder), and each will be automatically installed.  (In a perfect world, these would be pulled from Windows Update, but there's no simple way to do that, hence the need to include these in the MSI.  You can download the language pack ISO from MSDN or VLSC.)
 - Install features on demand (FOD).  Specify a list of features that you want to install, from the list at https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/features-on-demand-non-language-fod.  The needed components will be downloaded from Windows Update automatically and added to the running OS.
+- Remove features on demand (FOD). Specify a list of preinstalled Features on Demand to remove by their Capability Name, excluding the tilde characters and version number. Capability Names can be retrieved by running  `Get-WindowsCapability -Online` 
+- Disable Optional Features. Specify a list of optional features to disable by per their Feature Name. Feature Names can be retrieved by running  `Get-WindowsOptionalFeature -Online`
 - Configure language settings.  Adding a language pack isn't enough - you have to tell Windows that you want it to be configured for all users.  This is done through an XML file fed to INTL.CPL; customize the file as needed.  (Note this is commented out by default in the Config.xml file.)
 - Configure default apps.  Import a list of file associations (as created by manually configuring the associations that you want and then using "DISM /Online /Export-DefaultAppAssociations:C:\Associations.xml" to export those settings) that should replace the default app associations.  (Note that even though an example is included from a customized Windows 10 1903 image, making IE 11 the default browser, you should replace this file with your own exported version.  Also, do not edit the file that you exported, e.g. to remove entries that you didn't change.)
 
@@ -45,9 +47,10 @@ See https://oofhours.com/2020/05/18/two-for-one-updated-autopilot-branding-and-u
 
 ## Change history
 
-2023-09-23: Added logic to handle the Windows 11 Start menu proces using Start2.bin; Windows 10 will continue to use Layout.xml.  Added additional Windows 11 in-box apps to remove.
-2024-01-31: Added additional apps to remove, adding timestamps to log messages, cleaned up error logging.
-2024-04-27: Added logic to stop the Start menu from popping up each time a new user signs in.
+- 2023-09-23: Added logic to handle the Windows 11 Start menu proces using Start2.bin; Windows 10 will continue to use Layout.xml.  Added additional Windows 11 in-box apps to remove.
+- 2024-01-31: Added additional apps to remove, adding timestamps to log messages, cleaned up error logging.
+- 2024-04-27: Added logic to stop the Start menu from popping up each time a new user signs in.
+- 2024-12-26: Added support for removing FODs and disabling optional features.
 
 ## Suggestions?
 
