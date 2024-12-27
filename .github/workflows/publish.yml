@@ -20,10 +20,13 @@ jobs:
 
     - name: Create Intune app
       shell: cmd
-      run: MakeApp.cmd
+      run: |
+        MakeApp.cmd
+        mkdir Build
+        copy AutopilotBranding.intunewin Build
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: Intune app package
+        name: AutopilotBranding
         path: AutopilotBranding.intunewin
