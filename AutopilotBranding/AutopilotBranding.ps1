@@ -37,15 +37,23 @@ Log "Install folder: $installFolder"
 Log "Loading configuration: $($installFolder)Config.xml"
 [Xml]$config = Get-Content "$($installFolder)Config.xml"
 
-# STEP 1: Apply custom start menu layout
+# STEP 1: Apply a custom start menu and taskbar layout
 $ci = Get-ComputerInfo
 if ($ci.OsBuildNumber -le 22000) {
 	Log "Importing layout: $($installFolder)Layout.xml"
 	Copy-Item "$($installFolder)Layout.xml" "C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml" -Force
 } else {
-	Log "Importing layout: $($installFolder)Start2.bin"
+	Log "Importing Start menu layout: $($installFolder)Start2.bin"
 	MkDir -Path "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState" -Force -ErrorAction SilentlyContinue | Out-Null
 	Copy-Item "$($installFolder)Start2.bin" "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState\Start2.bin" -Force
+	Log "Importing Taskbar layout: $($installFolder)TaskbarLayoutModification.xml"
+	MkDir -Path "C:\Windows\OEM\" -Force -ErrorAction SilentlyContinue | Out-Null
+	Copy-Item "$($installFolder)TaskbarLayoutModification.xml" "C:\Windows\OEM\TaskbarLayoutModification.xml" -Force
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f | Out-Host
+	Log "Unpin the Microsoft Store app from the taskbar"
+	reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Host
+	reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f | Out-Host
+	reg.exe unload HKLM\TempUser | Out-Host
 }
 
 # STEP 2: Configure background
