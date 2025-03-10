@@ -220,4 +220,34 @@ reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" 
 Log "Turning off Edge desktop icon"
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 | Out-Host
 
+# STEP 16: if PowerShell version 2 is installed, it’s possible to bypass the constrained language mode,
+# which normally is being enforced by application control solutions like AppLocker and similar.
+Log "Disabling PowerShell v2.0"
+try {
+    $PoShv2Enabled = Get-WindowsOptionalFeature -FeatureName "MicrosoftWindowsPowerShellV2Root" -Online | Select-Object -ExpandProperty State
+} catch {
+    Write-Error "Failed to get the state of the PowerShell v2.0 feature: : $($_.Exception.Message)"
+}
+if ($PoShv2Enabled -eq "Enabled") {
+    try {
+        Disable-WindowsOptionalFeature -Online -FeatureName MicrosoftWindowsPowerShellV2Root -ErrorAction Continue -NoRestart
+    } catch {
+        Write-Error "Failed to disable the PowerShell v2.0 feature: $($_.Exception.Message)"
+    }
+}
+
+# STEP 17: Remove the registry keys for Dev Home and Outlook New
+# This is a workaround for the issue where the Dev Home and Outlook New apps are installed by default
+Log "Disabling Windows 11 Dev Home and Outlook New"
+$DevHome = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate"
+$OutlookNew = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate"
+if (Test-Path -Path $DevHome) {
+    Log "Found --> Removing DevHome"
+    Remove-Item -Path $DevHome -Force
+}
+if (Test-Path -Path $OutlookNew) {
+    Log "Found --> Removing Outlook NEW"
+    Remove-Item -Path $OutlookNew -Force
+}
+
 Stop-Transcript
