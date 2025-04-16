@@ -37,6 +37,9 @@ Log "Install folder: $installFolder"
 Log "Loading configuration: $($installFolder)Config.xml"
 [Xml]$config = Get-Content "$($installFolder)Config.xml"
 
+# PREP: Load the default user registry
+reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Host
+
 # STEP 1: Apply a custom start menu and taskbar layout
 $ci = Get-ComputerInfo
 if ($ci.OsBuildNumber -le 22000) {
@@ -51,14 +54,10 @@ if ($ci.OsBuildNumber -le 22000) {
 	Copy-Item "$($installFolder)TaskbarLayoutModification.xml" "C:\Windows\OEM\TaskbarLayoutModification.xml" -Force
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f | Out-Host
 	Log "Unpin the Microsoft Store app from the taskbar"
-	reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Host
 	reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f | Out-Host
-	reg.exe unload HKLM\TempUser | Out-Host
 }
 
 # STEP 2: Configure background
-reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Host
-
 Log "Setting up Autopilot theme"
 Mkdir "C:\Windows\Resources\OEM Themes" -Force | Out-Null
 Copy-Item "$installFolder\Autopilot.theme" "C:\Windows\Resources\OEM Themes\Autopilot.theme" -Force
@@ -76,8 +75,6 @@ reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Hi
 # STEP 3C: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828
 Log "Disabling Windows Spotlight for Desktop"
 reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f | Out-Host
-
-reg.exe unload HKLM\TempUser | Out-Host
 
 # STEP 3: Set time zone (if specified)
 if ($config.Config.TimeZone) {
@@ -114,6 +111,14 @@ if ($config.Config.OneDriveSetup) {
 	$proc = Start-Process $dest -ArgumentList "/allusers" -WindowStyle Hidden -PassThru
 	$proc.WaitForExit()
 	Log "OneDriveSetup exit code: $($proc.ExitCode)"
+
+	$OneDriveSetup = Get-ItemProperty "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" | Select-Object -ExpandProperty "OneDriveSetup"
+	if ($OneDriveSetup) {
+		Log "Cleaning up user OneDriveSetup key"
+		Remove-ItemProperty -Path "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" -Name "OneDriveSetup" | Out-Null
+		Log "Creating new OneDriveSetup key and pointing it to the machine wide EXE"
+		New-ItemProperty -Path "HKLM:\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Run" -Name "OneDriveSetup" -Value '"C:\Program Files\Microsoft OneDrive\Onedrive.exe" /background' -Force
+	}
 }
 
 # STEP 6: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
@@ -249,5 +254,8 @@ if (Test-Path -Path $OutlookNew) {
     Log "Found --> Removing Outlook NEW"
     Remove-Item -Path $OutlookNew -Force
 }
+
+# CLEANUP: Unload the default registry profile
+reg.exe unload HKLM\TempUser | Out-Host
 
 Stop-Transcript
