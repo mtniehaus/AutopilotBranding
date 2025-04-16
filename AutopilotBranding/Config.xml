@@ -27,6 +27,7 @@
     <App>Microsoft.PowerAutomateDesktop</App>
   </RemoveApps>
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
+  <OneDriveARMSetup>https://go.microsoft.com/fwlink/?linkid=2282608</OneDriveARMSetup>
   <AddFeatures>
     <Feature>Microsoft.Windows.Sense.Client~~~~</Feature>
     <!-- If you do add a language pack, make sure you add these language add-ons for each one.

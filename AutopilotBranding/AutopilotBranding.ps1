@@ -65,6 +65,7 @@ Mkdir "C:\Windows\web\wallpaper\Autopilot" -Force | Out-Null
 Copy-Item "$installFolder\Autopilot.jpg" "C:\Windows\web\wallpaper\Autopilot\Autopilot.jpg" -Force
 Log "Setting Autopilot theme as the new user default"
 reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f | Out-Host
+reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f | Out-Host
 
 # STEP 2A: Stop Start menu from opening on first logon
 reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f | Out-Host
@@ -103,10 +104,15 @@ $config.Config.RemoveApps.App | % {
 
 # STEP 5: Install OneDrive per machine
 if ($config.Config.OneDriveSetup) {
-	Log "Downloading OneDriveSetup"
 	$dest = "$($env:TEMP)\OneDriveSetup.exe"
 	$client = new-object System.Net.WebClient
-	$client.DownloadFile($config.Config.OneDriveSetup, $dest)
+	if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+		$url = $config.Config.OneDriveARMSetup
+	} else {
+		$url = $config.Config.OneDriveSetup
+	}
+	Log "Downloading OneDriveSetup: $url"
+	$client.DownloadFile($url, $dest)
 	Log "Installing: $dest"
 	$proc = Start-Process $dest -ArgumentList "/allusers" -WindowStyle Hidden -PassThru
 	$proc.WaitForExit()
