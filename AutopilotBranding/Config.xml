@@ -1,9 +1,13 @@
 <Config>
+  <!-- Flags to control what should be skipped -->
+  <SkipUEV>true</SkipUEV>
+  <SkipLeftAlignStart>true</SkipLeftAlignStart>
+
+  <!-- Settings for various items-->
   <TimeZone></TimeZone>
   <RemoveApps>
     <App>Microsoft.BingNews</App>
     <App>Microsoft.BingWeather</App>
-    <App>Microsoft.DesktopAppInstaller</App>
     <App>Microsoft.GamingApp</App>
     <App>Microsoft.Getstarted</App>
     <App>Microsoft.Messaging</App>
@@ -25,6 +29,10 @@
     <App>Microsoft.ZuneVideo</App>
     <App>Clipchamp.Clipchamp</App>
     <App>Microsoft.PowerAutomateDesktop</App>
+    <App>Microsoft.Xbox.TCUI</App>
+    <App>Microsoft.XboxGamingOverlay</App>
+    <App>Microsoft.XboxIdentityProvider</App>
+    <App>Microsoft.XboxSpeechToTextOverlay</App>
   </RemoveApps>
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
   <OneDriveARMSetup>https://go.microsoft.com/fwlink/?linkid=2282608</OneDriveARMSetup>

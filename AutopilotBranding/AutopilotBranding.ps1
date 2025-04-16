@@ -73,9 +73,17 @@ reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Ad
 # STEP 2B: Hide "Learn more about this picture" from the desktop
 reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f | Out-Host
 
-# STEP 3C: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828
+# STEP 2C: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828
 Log "Disabling Windows Spotlight for Desktop"
 reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f | Out-Host
+
+# STEP 2D: Left Align Start Button in the default user profile, users can change it if they want
+if ($config.Config.SkipLeftAlignStart -ine "true") {
+	Log "Configuring left aligned Start menu"
+	reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAl /t REG_DWORD /d 0 /f | Out-Host
+} else {
+	Log "Skipping Left align start"
+}
 
 # STEP 3: Set time zone (if specified)
 if ($config.Config.TimeZone) {
@@ -151,14 +159,18 @@ if ($currentWU -eq 1)
 	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 0
 	Restart-Service wuauserv
 }
+
 # Step 9A: Add features on demand
 if ($config.Config.AddFeatures.Feature.Count -gt 0)
 {
 	$config.Config.AddFeatures.Feature | % {
 		Log "Adding Windows feature: $_"
-		Add-WindowsCapability -Online -Name $_ -ErrorAction SilentlyContinue | Out-Null
+		try {
+			Add-WindowsCapability -Online -Name $_
+		} catch {}
 	}
 }
+
 # Step 9B: Disable Optional features
 if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0)
 {
@@ -166,10 +178,13 @@ if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0)
 	foreach ($EnabledFeature in $EnabledOptionalFeatures) {
 		if ($config.Config.DisableOptionalFeatures.Feature -contains $EnabledFeature.FeatureName) {
 			Log "Disabling Optional Feature:  $($EnabledFeature.FeatureName)"
-			Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart | Out-Null
+			try {
+				Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart 
+			} catch {}
 		}
 	}
 }
+
 # Step 9C: Remove Windows Capabilities
 if ($config.Config.RemoveCapability.Capability.Count -gt 0)
 {
@@ -177,7 +192,9 @@ if ($config.Config.RemoveCapability.Capability.Count -gt 0)
 	foreach ($InstalledCapability in $InstalledCapabilities) {
 		if ($config.Config.RemoveCapability.Capability -contains $InstalledCapability.Name.Split("~")[0]) {
 			Log "Removing Windows Capability:  $($InstalledCapability.Name)"
-			Remove-WindowsCapability -Online -Name $InstalledCapability.Name  | Out-Null
+			try {
+				Remove-WindowsCapability -Online -Name $InstalledCapability.Name  | Out-Null
+			} catch {}
 		}
 	}
 }
@@ -215,12 +232,17 @@ if ($config.Config.OEMInfo)
 }
 
 # STEP 13: Enable UE-V
-Log "Enabling UE-V"
-Enable-UEV
-Set-UevConfiguration -Computer -SettingsStoragePath "%OneDriveCommercial%\UEV" -SyncMethod External -DisableWaitForSyncOnLogon
-Get-ChildItem "$($installFolder)UEV" -Filter *.xml | % {
-	Log "Registering template: $($_.FullName)"
-	Register-UevTemplate -Path $_.FullName
+if ($config.Config.SkipUEV -ine "false") 
+{
+	Log "Enabling UE-V"
+	Enable-UEV
+	Set-UevConfiguration -Computer -SettingsStoragePath "%OneDriveCommercial%\UEV" -SyncMethod External -DisableWaitForSyncOnLogon
+	Get-ChildItem "$($installFolder)UEV" -Filter *.xml | % {
+		Log "Registering template: $($_.FullName)"
+		Register-UevTemplate -Path $_.FullName
+	}
+} else {
+	Log "Skipping UE-V"
 }
 
 # STEP 14: Disable network location fly-out
