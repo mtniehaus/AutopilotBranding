@@ -2,10 +2,18 @@
   <!-- Flags to control what should be skipped -->
   <SkipUEV>true</SkipUEV>
   <SkipLeftAlignStart>true</SkipLeftAlignStart>
+  <SkipUpdates>false</SkipUpdates>
+  <SkipWinGet>false</SkipWinGet>
+  <SkipHideWidgets>false</SkipHideWidgets>
+  <SkipStartLayout>false</SkipStartLayout>
+  <SkipTaskbarLayout>false</SkipTaskbarLayout>
+  <SkipTheme>false</SkipTheme>
+  <SkipLockScreen>false</SkipLockScreen>
 
   <!-- Settings for various items-->
   <TimeZone></TimeZone>
   <RemoveApps>
+    <App>Clipchamp.Clipchamp</App>
     <App>Microsoft.BingNews</App>
     <App>Microsoft.BingWeather</App>
     <App>Microsoft.GamingApp</App>
@@ -16,8 +24,10 @@
     <App>Microsoft.MicrosoftSolitaireCollection</App>
     <App>Microsoft.MixedReality.Portal</App>
     <App>Microsoft.MSPaint</App>
+    <App>Microsoft.News</App>
     <App>Microsoft.OneConnect</App>
     <App>Microsoft.People</App>
+    <App>Microsoft.PowerAutomateDesktop</App>
     <App>Microsoft.Print3D</App>
     <App>Microsoft.SkypeApp</App>
     <App>microsoft.windowscommunicationsapps</App>
@@ -27,13 +37,20 @@
     <App>Microsoft.YourPhone</App>
     <App>Microsoft.ZuneMusic</App>
     <App>Microsoft.ZuneVideo</App>
-    <App>Clipchamp.Clipchamp</App>
-    <App>Microsoft.PowerAutomateDesktop</App>
     <App>Microsoft.Xbox.TCUI</App>
+    <App>Microsoft.XboxApp</App>
+    <App>Microsoft.XboxGameOverlay</App>
     <App>Microsoft.XboxGamingOverlay</App>
     <App>Microsoft.XboxIdentityProvider</App>
     <App>Microsoft.XboxSpeechToTextOverlay</App>
+    <!-- Microsoft Copilot -->
+    <App>9NHT9RB2F4HD</App>
   </RemoveApps>
+  <WinGetInstall>
+    <Id>Google.Chrome</Id>
+    <!-- Microsoft 365 Copilot -->
+    <Id>9WZDNCRD29V9</Id>
+  </WinGetInstall>
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
   <OneDriveARMSetup>https://go.microsoft.com/fwlink/?linkid=2282608</OneDriveARMSetup>
   <AddFeatures>
@@ -46,10 +63,10 @@
     <Feature>Language.Speech~~~es-ES~0.0.1.0</Feature>
     <Feature>Language.TextToSpeech~~~es-ES~0.0.1.0</Feature>
     -->
+    <Feature>WMIC</Feature>
     <!-- If you want .NET 3.5, uncomment this one.
     <Feature>NetFX3~~~~</Feature>
     -->
-    <Feature>WMIC</Feature>
   </AddFeatures>
   <!-- This section defines a list of Optional Features to disable. Add the Name of the feature as returned by Get-WindowsOptionalFeature -->
   <DisableOptionalFeatures>
