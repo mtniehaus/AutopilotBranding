@@ -110,7 +110,7 @@ if ($config.Config.SkipLockScreen -ine "true") {
 	Log "Skipping lock screen image"
 }
 
-# STEP 2E: Left Align Start Button in the default user profile, users can change it if they want
+# STEP 3: Left Align Start Button in the default user profile, users can change it if they want
 if ($config.Config.SkipLeftAlignStart -ine "true") {
 	Log "Configuring left aligned Start menu"
 	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAl /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
@@ -118,7 +118,7 @@ if ($config.Config.SkipLeftAlignStart -ine "true") {
 	Log "Skipping Left align start"
 }
 
-# STEP 2F: Hide the widgets
+# STEP 4: Hide the widgets
 if ($config.Config.SkipHideWidgets -ine "true") {
 	Log "Hiding widgets"
 	# This will fail on Windows 11 24H2 due to UCPD, see https://kolbi.cz/blog/2024/04/03/userchoice-protection-driver-ucpd-sys/
@@ -135,7 +135,7 @@ if ($config.Config.SkipHideWidgets -ine "true") {
 	Log "Skipping Hide widgets"
 }
 
-# STEP 3: Set time zone (if specified)
+# STEP 5: Set time zone (if specified)
 if ($config.Config.TimeZone) {
 	Log "Setting time zone: $($config.Config.TimeZone)"
 	Set-Timezone -Id $config.Config.TimeZone
@@ -147,7 +147,7 @@ else {
 	Start-Service -Name "lfsvc" -ErrorAction SilentlyContinue
 }
 
-# STEP 4: Remove specified provisioned apps if they exist
+# STEP 6: Remove specified provisioned apps if they exist
 Log "Removing specified in-box provisioned apps"
 $apps = Get-AppxProvisionedPackage -online
 $config.Config.RemoveApps.App | ForEach-Object {
@@ -160,7 +160,7 @@ $config.Config.RemoveApps.App | ForEach-Object {
 	}
 }
 
-# STEP 5: Install OneDrive per machine
+# STEP 7: Install OneDrive per machine
 if ($config.Config.OneDriveSetup) {
 	$dest = "$($env:TEMP)\OneDriveSetup.exe"
 	$client = new-object System.Net.WebClient
@@ -187,23 +187,25 @@ if ($config.Config.OneDriveSetup) {
 	}
 }
 
-# STEP 6: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
+# STEP 8: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
 Log "Turning off (old) Edge desktop shortcut"
 & reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+Log "Turning off Edge desktop icon"
+& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
 
-# STEP 7: Add language packs
+# STEP 9: Add language packs
 Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
 	Log "Adding language pack: $($_.FullName)"
 	Add-WindowsPackage -Online -NoRestart -PackagePath $_.FullName
 }
 
-# STEP 8: Change language
+# STEP 10: Change language
 if ($config.Config.Language) {
 	Log "Configuring language using: $($config.Config.Language)"
 	& $env:SystemRoot\System32\control.exe "intl.cpl,,/f:`"$($installFolder)$($config.Config.Language)`""
 }
 
-# STEP 9: Add features on demand, Disable Optional Features, Remove Windows Capabilities
+# STEP 11: Add features on demand, Disable Optional Features, Remove Windows Capabilities
 $currentWU = (Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction Ignore).UseWuServer
 if ($currentWU -eq 1)
 {
@@ -212,7 +214,7 @@ if ($currentWU -eq 1)
 	Restart-Service wuauserv
 }
 
-# Step 9A: Disable Optional features
+# Step 11A: Disable Optional features
 if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0)
 {
 	$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object {$_.State -eq "Enabled"}
@@ -226,7 +228,7 @@ if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0)
 	}
 }
 
-# Step 9B: Remove Windows Capabilities
+# Step 11B: Remove Windows Capabilities
 if ($config.Config.RemoveCapability.Capability.Count -gt 0)
 {
 	$InstalledCapabilities = Get-WindowsCapability -Online | Where-Object {$_.State -eq "Installed"}
@@ -240,7 +242,7 @@ if ($config.Config.RemoveCapability.Capability.Count -gt 0)
 	}
 }
 
-# Step 9C: Add features on demand
+# Step 11C: Add features on demand
 if ($config.Config.AddFeatures.Feature.Count -gt 0)
 {
 	$config.Config.AddFeatures.Feature | ForEach-Object {
@@ -261,20 +263,20 @@ if ($currentWU -eq 1)
 	Restart-Service wuauserv
 }
 
-# STEP 10: Customize default apps
+# STEP 12: Customize default apps
 if ($config.Config.DefaultApps) {
 	Log "Setting default apps: $($config.Config.DefaultApps)"
 	& Dism.exe /Online /Import-DefaultAppAssociations:`"$($installFolder)$($config.Config.DefaultApps)`"
 }
 
-# STEP 11: Set registered user and organization
+# STEP 13: Set registered user and organization
 if ($config.Config.RegisteredOwner) {
 	Log "Configuring registered user information"
 	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOwner /t REG_SZ /d "$($config.Config.RegisteredOwner)" /f /reg:64 2>&1 | Out-Host
 	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOrganization /t REG_SZ /d "$($config.Config.RegisteredOrganization)" /f /reg:64 2>&1 | Out-Host
 }
 
-# STEP 12: Configure OEM branding info
+# STEP 14: Configure OEM branding info
 if ($config.Config.OEMInfo)
 {
 	Log "Configuring OEM branding info"
@@ -288,7 +290,7 @@ if ($config.Config.OEMInfo)
 	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 | Out-Host
 }
 
-# STEP 13: Enable UE-V
+# STEP 15: Enable UE-V
 if ($config.Config.SkipUEV -ine "true") 
 {
 	Log "Enabling UE-V"
@@ -302,29 +304,30 @@ if ($config.Config.SkipUEV -ine "true")
 	Log "Skipping UE-V"
 }
 
-# STEP 14: Disable network location fly-out
+# STEP 16: Disable network location fly-out
 Log "Turning off network location fly-out"
 & reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f /reg:64
 
-# STEP 15: Disable new Edge desktop icon
-Log "Turning off Edge desktop icon"
-& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
-
-# STEP 16: Remove the registry keys for Dev Home and Outlook New
+# STEP 17: Remove the registry keys for Dev Home and Outlook New
 # This is a workaround for the issue where the Dev Home and Outlook New apps are installed by default
-Log "Disabling Windows 11 Dev Home and Outlook New"
-$DevHome = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate"
-$OutlookNew = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate"
-if (Test-Path -Path $DevHome) {
-    Log "  Removing DevHome key"
-    Remove-Item -Path $DevHome -Force
-}
-if (Test-Path -Path $OutlookNew) {
-    Log "  Removing Outlook for Windows key"
-    Remove-Item -Path $OutlookNew -Force
+if ($config.Config.SkipAutoinstallingApps -ine "true") 
+{
+	Log "Disabling Windows 11 Dev Home and Outlook New"
+	$DevHome = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate"
+	$OutlookNew = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate"
+	if (Test-Path -Path $DevHome) {
+		Log "  Removing DevHome key"
+		Remove-Item -Path $DevHome -Force
+	}
+	if (Test-Path -Path $OutlookNew) {
+		Log "  Removing Outlook for Windows key"
+		Remove-Item -Path $OutlookNew -Force
+	}
+} else {
+	Log "Skipping autoinstalling app logic"
 }
 
-# STEP 17: WinGet installs
+# STEP 18: WinGet installs
 if ($config.Config.SkipWinGet -ine "true") {
 	$winget = (Get-ChildItem -Path "C:\Program Files\WindowsApps" -Recurse -Filter "winget.exe").FullName
 	$config.Config.WinGetInstall.Id | ForEach-Object {
@@ -335,7 +338,7 @@ if ($config.Config.SkipWinGet -ine "true") {
 	}
 }
 
-# STEP 18: Disable extra APv2 pages (too late to do anything about the EULA), see https://call4cloud.nl/autopilot-device-preparation-hide-privacy-settings/
+# STEP 19: Disable extra APv2 pages (too late to do anything about the EULA), see https://call4cloud.nl/autopilot-device-preparation-hide-privacy-settings/
 if ($config.Config.SkipAPv2 -ine "true") {
 	$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE"
 	New-ItemProperty -Path $registryPath -Name "DisablePrivacyExperience" -Value 1 -PropertyType DWord -Force | Out-Null
@@ -344,7 +347,7 @@ if ($config.Config.SkipAPv2 -ine "true") {
 	New-ItemProperty -Path $registryPath -Name "ProtectYourPC" -Value 3 -PropertyType DWord -Force | Out-Null
 }
 
-# STEP 19: Try to get Windows to update stuff
+# STEP 20: Try to get Windows to update stuff
 if ($config.Config.SkipUpdates -ine "true") {
 	try {
 		Log "Updating in-box apps"
