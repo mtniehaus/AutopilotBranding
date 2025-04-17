@@ -141,9 +141,9 @@ else {
 # STEP 4: Remove specified provisioned apps if they exist
 Log "Removing specified in-box provisioned apps"
 $apps = Get-AppxProvisionedPackage -online
-$config.Config.RemoveApps.App | % {
+$config.Config.RemoveApps.App | ForEach-Object {
 	$current = $_
-	$apps | ? {$_.DisplayName -eq $current} | % {
+	$apps | Where-Object {$_.DisplayName -eq $current} | ForEach-Object {
 		try {
 			Log "Removing provisioned app: $current"
 			$_ | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
@@ -181,7 +181,7 @@ Log "Turning off (old) Edge desktop shortcut"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 | Out-Host
 
 # STEP 7: Add language packs
-Get-ChildItem "$($installFolder)LPs" -Filter *.cab | % {
+Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
 	Log "Adding language pack: $($_.FullName)"
 	Add-WindowsPackage -Online -NoRestart -PackagePath $_.FullName
 }
@@ -232,7 +232,7 @@ if ($config.Config.RemoveCapability.Capability.Count -gt 0)
 # Step 9C: Add features on demand
 if ($config.Config.AddFeatures.Feature.Count -gt 0)
 {
-	$config.Config.AddFeatures.Feature | % {
+	$config.Config.AddFeatures.Feature | ForEach-Object {
 		Log "Adding Windows feature: $_"
 		try {
 			$result = Add-WindowsCapability -Online -Name $_
@@ -283,7 +283,7 @@ if ($config.Config.SkipUEV -ine "true")
 	Log "Enabling UE-V"
 	Enable-UEV
 	Set-UevConfiguration -Computer -SettingsStoragePath "%OneDriveCommercial%\UEV" -SyncMethod External -DisableWaitForSyncOnLogon
-	Get-ChildItem "$($installFolder)UEV" -Filter *.xml | % {
+	Get-ChildItem "$($installFolder)UEV" -Filter *.xml | ForEach-Object {
 		Log "Registering template: $($_.FullName)"
 		Register-UevTemplate -Path $_.FullName
 	}
@@ -316,7 +316,7 @@ if (Test-Path -Path $OutlookNew) {
 # STEP 17: WinGet installs
 if ($config.Config.SkipWinGet -ine "true") {
 	$winget = (Get-ChildItem -Path "C:\Program Files\WindowsApps" -Recurse -Filter "winget.exe").FullName
-	$config.Config.WinGetInstall.Id | % {
+	$config.Config.WinGetInstall.Id | ForEach-Object {
 		Log "Installing $_"
 		try {
 			& $winget install "$_" --accept-package-agreements --accept-source-agreements --scope machine
