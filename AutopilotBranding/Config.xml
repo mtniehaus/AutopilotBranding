@@ -9,7 +9,8 @@
   <SkipTaskbarLayout>false</SkipTaskbarLayout>
   <SkipTheme>false</SkipTheme>
   <SkipLockScreen>false</SkipLockScreen>
-
+  <SkipAutoinstallingApps>false</SkipAutoinstallingApps>
+  
   <!-- Settings for various items-->
   <TimeZone></TimeZone>
   <RemoveApps>
