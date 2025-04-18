@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 2.0.0
+.VERSION 3.0.1
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -24,6 +24,7 @@ v2.0.6 - 2024-08-15 - Added logic to update OneDrive with the machine-wide insta
 v2.0.7 - 2024-09-14 - Added logic to install the Microsoft.Windows.Sense.Client (for MDE) if it was missing
 v2.0.8 - 2024-12-27 - Updated for Windows 11 taskbar, added support for removing/disabling Windows features
 v3.0.0 - 2025-04-17 - Lots of improvements and additions based on feedback
+v3.0.1 - 2025-04-18 - Fixed OneDriveSetup bug
 #>
 function Log() {
 	[CmdletBinding()]
@@ -203,7 +204,6 @@ if ($config.Config.OneDriveSetup) {
 	Log "OneDriveSetup exit code: $($proc.ExitCode)"
 
 	$OneDriveSetup = Get-ItemProperty "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" | Select-Object -ExpandProperty "OneDriveSetup"
-	$OneDriveSetup = $null
 	[GC]::Collect()
 	if ($OneDriveSetup) {
 		Log "Cleaning up user OneDriveSetup key"
@@ -211,6 +211,7 @@ if ($config.Config.OneDriveSetup) {
 		Log "Creating new OneDriveSetup key and pointing it to the machine wide EXE"
 		& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /v OneDriveSetup /t REG_SZ /d '"C:\Program Files\Microsoft OneDrive\Onedrive.exe" /background' /f /reg:64 2>&1 | Out-Host
 	}
+	$OneDriveSetup = $null
 }
 
 # STEP 8: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
