@@ -18,7 +18,8 @@
     <App>Microsoft.BingNews</App>
     <App>Microsoft.BingWeather</App>
     <App>Microsoft.GamingApp</App>
-    <App>Microsoft.Getstarted</App>
+    <App>Microsoft.GetHelp</App>
+    <App>Microsoft.GetStarted</App>
     <App>Microsoft.Messaging</App>
     <App>Microsoft.Microsoft3DViewer</App>
     <App>Microsoft.MicrosoftOfficeHub</App>

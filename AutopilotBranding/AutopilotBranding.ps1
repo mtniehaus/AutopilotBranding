@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.1
+.VERSION 3.0.2
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -25,6 +25,7 @@ v2.0.7 - 2024-09-14 - Added logic to install the Microsoft.Windows.Sense.Client 
 v2.0.8 - 2024-12-27 - Updated for Windows 11 taskbar, added support for removing/disabling Windows features
 v3.0.0 - 2025-04-17 - Lots of improvements and additions based on feedback
 v3.0.1 - 2025-04-18 - Fixed OneDriveSetup bugs
+v3.0.2 - 2025-04-19 - Added a -Force option when installing the Update-InboxApp script; added -AllUsers when removing provisioned in-box apps
 #>
 function Log() {
 	[CmdletBinding()]
@@ -182,7 +183,7 @@ $config.Config.RemoveApps.App | ForEach-Object {
 	$apps | Where-Object {$_.DisplayName -eq $current} | ForEach-Object {
 		try {
 			Log "Removing provisioned app: $current"
-			$_ | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
+			$_ | Remove-AppxProvisionedPackage -Online -AllUsers -ErrorAction SilentlyContinue | Out-Null
 		} catch { }
 	}
 }
@@ -375,7 +376,7 @@ if ($config.Config.SkipAPv2 -ine "true") {
 if ($config.Config.SkipUpdates -ine "true") {
 	try {
 		Log "Updating in-box apps"
-		Install-Script Update-InboxApp
+		Install-Script Update-InboxApp -Force
 		Get-AppxPackage | Select-Object -Unique PackageFamilyName | Update-InboxApp.ps1
 
 		Log "Kicking off a Windows Update scan"
