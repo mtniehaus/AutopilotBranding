@@ -24,7 +24,7 @@ v2.0.6 - 2024-08-15 - Added logic to update OneDrive with the machine-wide insta
 v2.0.7 - 2024-09-14 - Added logic to install the Microsoft.Windows.Sense.Client (for MDE) if it was missing
 v2.0.8 - 2024-12-27 - Updated for Windows 11 taskbar, added support for removing/disabling Windows features
 v3.0.0 - 2025-04-17 - Lots of improvements and additions based on feedback
-v3.0.1 - 2025-04-18 - Fixed OneDriveSetup bug
+v3.0.1 - 2025-04-18 - Fixed OneDriveSetup bugs
 #>
 function Log() {
 	[CmdletBinding()]
@@ -203,15 +203,12 @@ if ($config.Config.OneDriveSetup) {
 	$proc.WaitForExit()
 	Log "OneDriveSetup exit code: $($proc.ExitCode)"
 
-	$OneDriveSetup = Get-ItemProperty "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" | Select-Object -ExpandProperty "OneDriveSetup"
-	[GC]::Collect()
-	if ($OneDriveSetup) {
-		Log "Cleaning up user OneDriveSetup key"
-		reg.exe remove "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /v OneDriveSetup /f /reg:64 2>&1 | Out-Host
-		Log "Creating new OneDriveSetup key and pointing it to the machine wide EXE"
-		& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /v OneDriveSetup /t REG_SZ /d '"C:\Program Files\Microsoft OneDrive\Onedrive.exe" /background' /f /reg:64 2>&1 | Out-Host
-	}
-	$OneDriveSetup = $null
+	Log "Making sure the Run key exists"
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /f /reg:64 2>&1 | Out-Host
+	& reg.exe query "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /reg:64 2>&1 | Out-Host
+	Log "Changing OneDriveSetup value to point to the machine wide EXE"
+	# Quotes are so problematic, we'll use the more risky approach and hope garbage collection cleans it up later
+	Set-ItemProperty -Path "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" -Name OneDriveSetup -Value """C:\Program Files\Microsoft OneDrive\Onedrive.exe"" /background" | Out-Null
 }
 
 # STEP 8: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
