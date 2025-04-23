@@ -200,7 +200,7 @@ if ($config.Config.OneDriveSetup) {
 	Log "Downloading OneDriveSetup: $url"
 	$client.DownloadFile($url, $dest)
 	Log "Installing: $dest"
-	$proc = Start-Process $dest -ArgumentList "/allusers" -WindowStyle Hidden -PassThru
+	$proc = Start-Process $dest -ArgumentList "/allusers /silent" -WindowStyle Hidden -PassThru
 	$proc.WaitForExit()
 	Log "OneDriveSetup exit code: $($proc.ExitCode)"
 
