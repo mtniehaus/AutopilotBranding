@@ -150,7 +150,14 @@ if ($config.Config.SkipLeftAlignStart -ine "true") {
 if ($config.Config.SkipHideWidgets -ine "true") {
 	Log "Hiding widgets"
 	# This will fail on Windows 11 24H2 due to UCPD, see https://kolbi.cz/blog/2024/04/03/userchoice-protection-driver-ucpd-sys/
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+	# New Work Around tested with 24H2
+	if ($ci.OsBuildNumber -ge 26100) {
+	Log "Trying Widget Work Around for 24H2"
+
+	}
+	else{
+		& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+	}
 	# Set GPOs as well
 	Log "Setting widget and news policies"
 	if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\Dsh")) {
