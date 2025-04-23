@@ -149,7 +149,7 @@ if ($config.Config.SkipLeftAlignStart -ine "true") {
 # STEP 4: Hide the widgets
 if ($config.Config.SkipHideWidgets -ine "true") {
 	# This will fail on Windows 11 24H2 due to UCPD, see https://kolbi.cz/blog/2024/04/03/userchoice-protection-driver-ucpd-sys/
-	# New Work Around tested with 24H2
+	# New Work Around tested with 24H2 to disable widgets as a preference
 	if ($ci.OsBuildNumber -ge 26100) {
 	Log "Attempting Widget Hiding workaround (TaskbarDa)"
 	$regExePath = (Get-Command reg.exe).Source
@@ -158,21 +158,29 @@ if ($config.Config.SkipHideWidgets -ine "true") {
 	& $tempRegExe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
 	Remove-Item $tempRegExe -Force -ErrorAction SilentlyContinue
 	Log "Widget Workaround Completed"
-	}else
-	{
+	}
+	else {
 	Log "Hiding widgets"	
 	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
 	}
-	# Set GPOs as well
-	Log "Setting widget and news policies"
+	
+} else {
+	Log "Skipping Hide widgets"
+}
+
+# STEP 4A: Disable Widgets (Grey out Settings Toggle)
+
+if ($config.Config.SkipDisableWidgets -ine "false") {
+
+# GPO settings below will completely disable Widgets, see:https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests#allownewsandinterests
+	Log "Disabling Widgets"
 	if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\Dsh")) {
 		New-Item -Path "HKLM:\Software\Policies\Microsoft\Dsh" | Out-Null
 	}
 	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Dsh"  -Name "DisableWidgetsOnLockScreen" -Value 1
 	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Dsh"  -Name "DisableWidgetsBoard" -Value 1
 	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Dsh"  -Name "AllowNewsAndInterests" -Value 0
-} else {
-	Log "Skipping Hide widgets"
+
 }
 
 # STEP 5: Set time zone (if specified)
