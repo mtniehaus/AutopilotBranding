@@ -412,6 +412,7 @@ if ($config.Config.SkipUpdates -ine "true") {
 [GC]::Collect()
 reg.exe unload HKLM\TempUser | Out-Host
 
+Log "AutoPilot Branding Completed"
 Write-Host "All done!"
 
 Stop-Transcript
