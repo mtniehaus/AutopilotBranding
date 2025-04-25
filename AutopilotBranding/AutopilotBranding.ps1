@@ -375,10 +375,29 @@ if ($config.Config.SkipAPv2 -ine "true") {
 # STEP 20: Try to get Windows to update stuff
 if ($config.Config.SkipUpdates -ine "true") {
 	try {
-		Log "Updating in-box apps"
+		Log "Check for Nuget Package"
+		$requiredVersion = [version]'2.8.5.201'
+		$providerName = "NuGet"
+		$packageProvider = Get-PackageProvider -Name $providerName -ListAvailable -ErrorAction SilentlyContinue | out-Null
+		if ($packageProvider -ne $null) {
+   		 	# Now try getting the installed version specifically
+		 	Log "NuGet Found, checking Version"
+			 $installedVersion = $packageProvider.Version
+		 if ($installedVersion -ge $requiredVersion) {
+        	Log "Nuget Meets requirements."
+    	} else {
+       	 	Log "Nuget Needs Update"
+			Install-PackageProvider -Name $providerName -Force | Out-Null
+   	    }
+    	} 
+		else {
+    		Log "Nuget Package Missing. Installing.."
+			Install-PackageProvider -Name $providerName -Force | Out-Null
+		}
+		Log "Install Update Inbox-App Script"
 		Install-Script Update-InboxApp -Force
+		Log "Updating Inbox-Apps"
 		Get-AppxPackage | Select-Object -Unique PackageFamilyName | Update-InboxApp.ps1
-
 		Log "Kicking off a Windows Update scan"
 		$Namespace = "Root\cimv2\mdm\dmmap"
 		$ClassName = "MDM_EnterpriseModernAppManagement_AppManagement01"
