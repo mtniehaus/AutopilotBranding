@@ -240,7 +240,7 @@ if ($config.Config.OneDriveSetup) {
 	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" `
     /v OneDriveSetup `
     /t REG_SZ `
-    /d "`"C:\Program Files\Microsoft OneDrive\OneDrive.exe`" /background" `
+    /d "\"C:\Program Files\Microsoft OneDrive\OneDrive.exe\" /background" `
     /f /reg:64
 
     Log 'OneDrive installed'
