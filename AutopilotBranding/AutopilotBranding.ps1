@@ -95,7 +95,7 @@ Log "Loading configuration: $($installFolder)Config.xml"
 [Xml]$config = Get-Content "$($installFolder)Config.xml"
 
 # PREP: Load the default user registry
-reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Host
+reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Null
 
 $ProgressPreference = 'SilentlyContinue'
 
@@ -120,9 +120,9 @@ if ($ci.OsBuildNumber -le 22000) {
 		Log "Importing Taskbar layout: $($installFolder)TaskbarLayoutModification.xml"
 		MkDir -Path "C:\Windows\OEM\" -Force -ErrorAction SilentlyContinue | Out-Null
 		Copy-Item "$($installFolder)TaskbarLayoutModification.xml" "C:\Windows\OEM\TaskbarLayoutModification.xml" -Force
-		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 2>&1 | Out-Host
+		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 2>&1 | Out-Null
 		Log "Unpin the Microsoft Store app from the taskbar"
-		& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+		& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 	} else {
 		Log "Skipping Taskbar layout (Windows 11)"
 	}
@@ -136,8 +136,8 @@ if ($config.Config.SkipTheme -ine "true") {
 	Mkdir "C:\Windows\web\wallpaper\Autopilot" -Force | Out-Null
 	Copy-Item "$installFolder\Autopilot.jpg" "C:\Windows\web\wallpaper\Autopilot\Autopilot.jpg" -Force
 	Log "Setting Autopilot theme as the new user default"
-	& reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 2>&1 | Out-Null
 } else {
 	Log "Skipping Autopilot theme"
 }
@@ -156,14 +156,14 @@ if ($config.Config.SkipLockScreen -ine "true") {
 	New-ItemProperty -Path $RegPath -Name LockScreenImageStatus -Value 1 -PropertyType DWORD -Force | Out-Null
 
 	# STEP 2B: Stop Start menu from opening on first logon
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 
 	# STEP 2C: Hide "Learn more about this picture" from the desktop (so wallpaper will work)
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 
 	# STEP 2D: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828 (so wallpaper will work)
 	Log "Disabling Windows Spotlight for Desktop"
-	& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 
 } else {
 	Log "Skipping lock screen image"
@@ -172,7 +172,7 @@ if ($config.Config.SkipLockScreen -ine "true") {
 # STEP 3: Left Align Start Button in the default user profile, users can change it if they want
 if ($config.Config.SkipLeftAlignStart -ine "true") {
 	Log "Configuring left aligned Start menu"
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAl /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAl /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
 } else {
 	Log "Skipping Left align start"
 }
@@ -181,7 +181,7 @@ if ($config.Config.SkipLeftAlignStart -ine "true") {
 if ($config.Config.SkipHideWidgets -ine "true") {
 	Log "Hiding widgets"
 	# This will fail on Windows 11 24H2 due to UCPD, see https://kolbi.cz/blog/2024/04/03/userchoice-protection-driver-ucpd-sys/
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
 	# Set GPOs as well
 	Log "Setting widget and news policies"
 	if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\Dsh")) {
@@ -232,8 +232,8 @@ if ($config.Config.OneDriveSetup) {
 	$VerbosePreference = $OriginalVerbosePreference
 
 	Log "Making sure the Run key exists"
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /f /reg:64 2>&1 | Out-Host
-	& reg.exe query "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /f /reg:64 2>&1 | Out-Null
+	& reg.exe query "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /reg:64 2>&1 | Out-Null
 	Log "Changing OneDriveSetup value to point to the machine wide EXE"
 	# Trying to fix the Quotes issue
     #reg.exe --% add HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run /v OneDriveSetup /t REG_SZ /d "C:\Program Files\Microsoft OneDrive\OneDrive.exe /background" /f /reg:64 | Out-Null
@@ -248,9 +248,9 @@ if ($config.Config.OneDriveSetup) {
 
 # STEP 8: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
 Log "Turning off (old) Edge desktop shortcut"
-& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 Log "Turning off Edge desktop icon"
-& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
 
 # STEP 9: Add language packs
 Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
@@ -331,8 +331,8 @@ if ($config.Config.DefaultApps) {
 # STEP 13: Set registered user and organization
 if ($config.Config.RegisteredOwner) {
 	Log "Configuring registered user information"
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOwner /t REG_SZ /d "$($config.Config.RegisteredOwner)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOrganization /t REG_SZ /d "$($config.Config.RegisteredOrganization)" /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOwner /t REG_SZ /d "$($config.Config.RegisteredOwner)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOrganization /t REG_SZ /d "$($config.Config.RegisteredOrganization)" /f /reg:64 2>&1 | Out-Null
 }
 
 # STEP 14: Configure OEM branding info
@@ -340,13 +340,13 @@ if ($config.Config.OEMInfo)
 {
 	Log "Configuring OEM branding info"
 
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Model /t REG_SZ /d "$($config.Config.OEMInfo.Model)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportURL /t REG_SZ /d "$($config.Config.OEMInfo.SupportURL)" /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Model /t REG_SZ /d "$($config.Config.OEMInfo.Model)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportURL /t REG_SZ /d "$($config.Config.OEMInfo.SupportURL)" /f /reg:64 2>&1 | Out-Null
 	Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 | Out-Null
 }
 
 # STEP 15: Enable UE-V
@@ -399,7 +399,9 @@ if ($config.Config.SkipWinGet -ne 'true') {
     # $wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
     foreach ($id in $config.Config.WinGetInstall.Id) {
         Log "WinGet installing: $id"
-        & winget.exe install $id --silent --disable-interactivity --scope machine --accept-package-agreements --accept-source-agreements
+		try {
+        & winget.exe install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
+		} catch {}
     }
 	
 } else {
