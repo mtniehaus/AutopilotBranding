@@ -66,6 +66,7 @@ function Check-NuGetProvider {
 #Get the Current start time in UTC format, so that Time Zone Changes don't affect total runtime calculation
 $startUtc = [datetime]::UtcNow
 # Don't show progress bar for Add-AppxPackage - there's a weird issue where the progress stays on the screen after the apps are installed
+$OrginalProgressPreference = $ProgressPreference
 $ProgressPreference = 'SilentlyContinue'
 
 # If we are running as a 32-bit process on an x64 system, re-launch as a 64-bit process
@@ -465,5 +466,5 @@ else {
 Log 'Autopilot Branding Complete'
 Log "Total Script $($runTimeFormatted)"
 
-$ProgressPreference = 'Continue'
+$ProgressPreference = $OrginalProgressPreference 
 Stop-Transcript
