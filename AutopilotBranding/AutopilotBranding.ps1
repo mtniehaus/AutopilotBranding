@@ -228,7 +228,7 @@ if ($config.Config.OneDriveSetup) {
 	Log 'Downloading lastet OneDrive.exe'
     Invoke-WebRequest $url -OutFile $dest -UseBasicParsing
 	Log 'Installing OneDrive Machine wide'
-    Start-Process $dest -ArgumentList '/allusers /silent' -WindowStyle Hidden -Wait
+    Start-Process $dest -ArgumentList '/allusers' -WindowStyle Hidden -Wait
 	$VerbosePreference = $OriginalVerbosePreference
 
 	Log "Making sure the Run key exists"
