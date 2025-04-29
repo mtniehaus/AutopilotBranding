@@ -65,6 +65,8 @@ function Check-NuGetProvider {
 
 #Get the Current start time in UTC format, so that Time Zone Changes don't affect total runtime calculation
 $startUtc = [datetime]::UtcNow
+# Don't show progress bar for Add-AppxPackage - there's a weird issue where the progress stays on the screen after the apps are installed
+$ProgressPreference = 'SilentlyContinue'
 
 # If we are running as a 32-bit process on an x64 system, re-launch as a 64-bit process
 if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64")
@@ -96,8 +98,6 @@ Log "Loading configuration: $($installFolder)Config.xml"
 
 # PREP: Load the default user registry
 reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Null
-
-$ProgressPreference = 'SilentlyContinue'
 
 # STEP 1: Apply a custom start menu and taskbar layout
 $ci = Get-ComputerInfo
@@ -221,29 +221,28 @@ $config.Config.RemoveApps.App | ForEach-Object {
 
 # STEP 7: Install OneDrive per machine
 if ($config.Config.OneDriveSetup) {
-    $dest = "$env:TEMP\OneDriveSetup.exe"
-    $url = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { $config.Config.OneDriveARMSetup } else { $config.Config.OneDriveSetup }
-	$OriginalVerbosePreference = $VerbosePreference
-    $VerbosePreference = 'SilentlyContinue'
-	Log 'Downloading lastet OneDrive.exe'
-    Invoke-WebRequest $url -OutFile $dest -UseBasicParsing
-	Log 'Installing OneDrive Machine wide'
-    Start-Process $dest -ArgumentList '/allusers' -WindowStyle Hidden -Wait
-	$VerbosePreference = $OriginalVerbosePreference
+   
+	$dest = "$($env:TEMP)\OneDriveSetup.exe"
+	$client = new-object System.Net.WebClient
+	if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+		$url = $config.Config.OneDriveARMSetup
+	} else {
+		$url = $config.Config.OneDriveSetup
+	}
+	Log "Downloading OneDriveSetup: $url"
+	$client.DownloadFile($url, $dest)
+	Log "Installing: $dest"
+	$proc = Start-Process $dest -ArgumentList "/allusers /silent" -WindowStyle Hidden -PassThru
+	$proc.WaitForExit()
+	Log "OneDriveSetup exit code: $($proc.ExitCode)"
 
 	Log "Making sure the Run key exists"
 	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /f /reg:64 2>&1 | Out-Null
 	& reg.exe query "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /reg:64 2>&1 | Out-Null
 	Log "Changing OneDriveSetup value to point to the machine wide EXE"
-	# Trying to fix the Quotes issue
-    #reg.exe --% add HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run /v OneDriveSetup /t REG_SZ /d "C:\Program Files\Microsoft OneDrive\OneDrive.exe /background" /f /reg:64 | Out-Null
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" `
-    /v OneDriveSetup `
-    /t REG_SZ `
-    /d "\"C:\Program Files\Microsoft OneDrive\OneDrive.exe\" /background" `
-    /f /reg:64
+	# Quotes are so problematic, we'll use the more risky approach and hope garbage collection cleans it up later
+	Set-ItemProperty -Path "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" -Name OneDriveSetup -Value """C:\Program Files\Microsoft OneDrive\Onedrive.exe"" /background" | Out-Null
 
-    Log 'OneDrive installed'
 }
 
 # STEP 8: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
@@ -465,5 +464,6 @@ else {
 
 Log 'Autopilot Branding Finsihed'
 Log "Total $($runTimeFormatted)"
+
 $ProgressPreference = 'Continue'
 Stop-Transcript
