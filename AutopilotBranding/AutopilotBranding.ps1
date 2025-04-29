@@ -462,8 +462,8 @@ else {
     $runTimeFormatted = 'Duration: {0:mm} min {0:ss} sec' -f $runTime
 }
 
-Log 'Autopilot Branding Finsihed'
-Log "Total $($runTimeFormatted)"
+Log 'Autopilot Branding Complete'
+Log "Total Script $($runTimeFormatted)"
 
 $ProgressPreference = 'Continue'
 Stop-Transcript
