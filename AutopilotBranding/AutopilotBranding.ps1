@@ -439,20 +439,25 @@ if ($config.Config.SkipUpdates -ne 'true') {
 		#Nuget v 2.8.5.201 is required to import mtniehaus's PS Gallery Script Update-InboxApp
 		$minrequired = [version]'2.8.5.201'
 		Check-NuGetProvider -MinimumVersion $minrequired
-
+	} catch {
+		Log "Error updating WinGet"
+	}
+	try {
 		Log 'Installing Update-InboxApp script'
 		Install-Script Update-InboxApp -Force | Out-Null
 
 		Log 'Updating inbox apps'
 		Get-AppxPackage | Select-Object -Unique PackageFamilyName | Update-InboxApp.ps1
-
+	} catch {
+		Log "Error updating in-box apps: $_"
+	}
+	try {
 		Log 'Triggering Windows Update scan'
 		$ns = 'Root\cimv2\mdm\dmmap'
 		$class = 'MDM_EnterpriseModernAppManagement_AppManagement01'
 		Get-CimInstance -Namespace $ns -ClassName $class | Invoke-CimMethod -MethodName UpdateScanMethod
-	}
-	catch {
-		Log "Error Updating InBox- Appsin STEP 20: $_"
+	} catch {
+		Log "Error triggering Windows Update scan: $_"
 	}
 } else {
 	Log 'Skipping updates'
