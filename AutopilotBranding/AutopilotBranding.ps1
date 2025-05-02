@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.2
+.VERSION 3.0.3
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -26,12 +26,13 @@ v2.0.8 - 2024-12-27 - Updated for Windows 11 taskbar, added support for removing
 v3.0.0 - 2025-04-17 - Lots of improvements and additions based on feedback
 v3.0.1 - 2025-04-18 - Fixed OneDriveSetup bugs
 v3.0.2 - 2025-04-19 - Added a -Force option when installing the Update-InboxApp script; added -AllUsers when removing provisioned in-box apps
+v3.0.3 - 2025-05-02 - Additional fixes based on user feedback; tweaked script formatting; added FSIA, desktop switch logic
 #>
 
 function Log() {
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory=$false)] [String] $message
+		[Parameter(Mandatory = $false)] [String] $message
 	)
 
 	$ts = get-date -f "yyyy/MM/dd hh:mm:ss tt"
@@ -40,49 +41,45 @@ function Log() {
 
 
 function Check-NuGetProvider {
-    [CmdletBinding()]
-    param (
-        [version]$MinimumVersion = [version]'2.8.5.201'
-    )
-    $provider = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue |
-                Sort-Object Version -Descending |
-                Select-Object -First 1
+	[CmdletBinding()]
+	param (
+		[version]$MinimumVersion = [version]'2.8.5.201'
+	)
+	$provider = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue |
+	Sort-Object Version -Descending |
+	Select-Object -First 1
 
-    if (-not $provider) {
-        Log 'NuGet Provider Package not detected, installing...'
-        Install-PackageProvider -Name NuGet -Force | Out-Null
-        }
-    Elseif ($provider.Version -lt $MinimumVersion) {
-        Log "NuGet provider v$($provider.Version) is less than required v$MinimumVersion; updating."
-        Install-PackageProvider -Name NuGet -Force | Out-Null
+	if (-not $provider) {
+		Log 'NuGet Provider Package not detected, installing...'
+		Install-PackageProvider -Name NuGet -Force | Out-Null
+	} elseif ($provider.Version -lt $MinimumVersion) {
+		Log "NuGet provider v$($provider.Version) is less than required v$MinimumVersion; updating."
+		Install-PackageProvider -Name NuGet -Force | Out-Null
         
-    }
-	else{
-	Log "NuGet provider meets min requirements (v:$($provider.Version))."
-    }
+	} else {
+		Log "NuGet provider meets min requirements (v:$($provider.Version))."
+	}
     
 }
 
-#Get the Current start time in UTC format, so that Time Zone Changes don't affect total runtime calculation
+# Get the Current start time in UTC format, so that Time Zone Changes don't affect total runtime calculation
 $startUtc = [datetime]::UtcNow
+
 # Don't show progress bar for Add-AppxPackage - there's a weird issue where the progress stays on the screen after the apps are installed
 $OrginalProgressPreference = $ProgressPreference
 $ProgressPreference = 'SilentlyContinue'
 
 # If we are running as a 32-bit process on an x64 system, re-launch as a 64-bit process
-if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64")
-{
-    if (Test-Path "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe")
-    {
-        & "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy bypass -NoProfile -File "$PSCommandPath"
-        Exit $lastexitcode
-    }
+if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64") {
+	if (Test-Path "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe") {
+		& "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy bypass -NoProfile -File "$PSCommandPath"
+		Exit $lastexitcode
+	}
 }
 
 # Create output folder
-if (-not (Test-Path "$($env:ProgramData)\Microsoft\AutopilotBranding"))
-{
-    Mkdir "$($env:ProgramData)\Microsoft\AutopilotBranding" -Force
+if (-not (Test-Path "$($env:ProgramData)\Microsoft\AutopilotBranding")) {
+	Mkdir "$($env:ProgramData)\Microsoft\AutopilotBranding" -Force
 }
 
 # Start logging
@@ -117,6 +114,7 @@ if ($ci.OsBuildNumber -le 22000) {
 	} else {
 		Log "Skipping Start layout (Windows 11)"
 	}
+
 	if ($config.Config.SkipTaskbarLayout -ine "true") {
 		Log "Importing Taskbar layout: $($installFolder)TaskbarLayoutModification.xml"
 		MkDir -Path "C:\Windows\OEM\" -Force -ErrorAction SilentlyContinue | Out-Null
@@ -155,20 +153,19 @@ if ($config.Config.SkipLockScreen -ine "true") {
 	New-ItemProperty -Path $RegPath -Name LockScreenImagePath -Value $LockScreenImage -PropertyType String -Force | Out-Null
 	New-ItemProperty -Path $RegPath -Name LockScreenImageUrl -Value $LockScreenImage -PropertyType String -Force | Out-Null
 	New-ItemProperty -Path $RegPath -Name LockScreenImageStatus -Value 1 -PropertyType DWORD -Force | Out-Null
-
-	# STEP 2B: Stop Start menu from opening on first logon
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
-
-	# STEP 2C: Hide "Learn more about this picture" from the desktop (so wallpaper will work)
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
-
-	# STEP 2D: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828 (so wallpaper will work)
-	Log "Disabling Windows Spotlight for Desktop"
-	& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
-
 } else {
 	Log "Skipping lock screen image"
 }
+
+# STEP 2B: Stop Start menu from opening on first logon
+& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
+
+# STEP 2C: Hide "Learn more about this picture" from the desktop (so wallpaper will work)
+& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
+
+# STEP 2D: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828 (so wallpaper will work)
+Log "Disabling Windows Spotlight for Desktop"
+& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 
 # STEP 3: Left Align Start Button in the default user profile, users can change it if they want
 if ($config.Config.SkipLeftAlignStart -ine "true") {
@@ -183,17 +180,16 @@ if ($config.Config.SkipHideWidgets -ine "true") {
 	# This will fail on Windows 11 24H2 due to UCPD, see https://kolbi.cz/blog/2024/04/03/userchoice-protection-driver-ucpd-sys/
 	# New Work Around tested with 24H2 to disable widgets as a preference
 	if ($ci.OsBuildNumber -ge 26100) {
-	Log "Attempting Widget Hiding workaround (TaskbarDa)"
-	$regExePath = (Get-Command reg.exe).Source
-	$tempRegExe = "$($env:TEMP)\reg1.exe"
-	Copy-Item -Path $regExePath -Destination $tempRegExe -Force -ErrorAction Stop
-	& $tempRegExe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
-	Remove-Item $tempRegExe -Force -ErrorAction SilentlyContinue
-	Log "Widget Workaround Completed"
-	}
-	else {
-	Log "Hiding widgets"	
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+		Log "Attempting Widget Hiding workaround (TaskbarDa)"
+		$regExePath = (Get-Command reg.exe).Source
+		$tempRegExe = "$($env:TEMP)\reg1.exe"
+		Copy-Item -Path $regExePath -Destination $tempRegExe -Force -ErrorAction Stop
+		& $tempRegExe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+		Remove-Item $tempRegExe -Force -ErrorAction SilentlyContinue
+		Log "Widget Workaround Completed"
+	} else {
+		Log "Hiding widgets"	
+		& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
 	}
 	
 } else {
@@ -204,7 +200,7 @@ if ($config.Config.SkipHideWidgets -ine "true") {
 
 if ($config.Config.SkipDisableWidgets -ine "false") {
 
-# GPO settings below will completely disable Widgets, see:https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests#allownewsandinterests
+	# GPO settings below will completely disable Widgets, see:https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests#allownewsandinterests
 	Log "Disabling Widgets"
 	if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\Dsh")) {
 		New-Item -Path "HKLM:\Software\Policies\Microsoft\Dsh" | Out-Null
@@ -219,8 +215,7 @@ if ($config.Config.SkipDisableWidgets -ine "false") {
 if ($config.Config.TimeZone) {
 	Log "Setting time zone: $($config.Config.TimeZone)"
 	Set-Timezone -Id $config.Config.TimeZone
-}
-else {
+} else {
 	# Enable location services so the time zone will be set automatically (even when skipping the privacy page in OOBE) when an administrator signs in
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -Name "Value" -Type "String" -Value "Allow" -Force
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}" -Name "SensorPermissionState" -Type "DWord" -Value 1 -Force
@@ -232,11 +227,12 @@ Log "Removing specified in-box provisioned apps"
 $apps = Get-AppxProvisionedPackage -online
 $config.Config.RemoveApps.App | ForEach-Object {
 	$current = $_
-	$apps | Where-Object {$_.DisplayName -eq $current} | ForEach-Object {
+	$apps | Where-Object { $_.DisplayName -eq $current } | ForEach-Object {
 		try {
 			Log "Removing provisioned app: $current"
 			$_ | Remove-AppxProvisionedPackage -Online -AllUsers -ErrorAction SilentlyContinue | Out-Null
-		} catch { }
+		}
+		catch { }
 	}
 }
 
@@ -286,44 +282,42 @@ if ($config.Config.Language) {
 
 # STEP 11: Add features on demand, Disable Optional Features, Remove Windows Capabilities
 $currentWU = (Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction Ignore).UseWuServer
-if ($currentWU -eq 1)
-{
+if ($currentWU -eq 1) {
 	Log "Turning off WSUS"
 	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 0
 	Restart-Service wuauserv
 }
 
 # Step 11A: Disable Optional features
-if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0)
-{
-	$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object {$_.State -eq "Enabled"}
+if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0) {
+	$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object { $_.State -eq "Enabled" }
 	foreach ($EnabledFeature in $EnabledOptionalFeatures) {
 		if ($config.Config.DisableOptionalFeatures.Feature -contains $EnabledFeature.FeatureName) {
 			Log "Disabling Optional Feature:  $($EnabledFeature.FeatureName)"
 			try {
 				Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart | Out-Null
-			} catch {}
+			}
+			catch {}
 		}
 	}
 }
 
 # Step 11B: Remove Windows Capabilities
-if ($config.Config.RemoveCapability.Capability.Count -gt 0)
-{
-	$InstalledCapabilities = Get-WindowsCapability -Online | Where-Object {$_.State -eq "Installed"}
+if ($config.Config.RemoveCapability.Capability.Count -gt 0) {
+	$InstalledCapabilities = Get-WindowsCapability -Online | Where-Object { $_.State -eq "Installed" }
 	foreach ($InstalledCapability in $InstalledCapabilities) {
 		if ($config.Config.RemoveCapability.Capability -contains $InstalledCapability.Name.Split("~")[0]) {
 			Log "Removing Windows Capability:  $($InstalledCapability.Name)"
 			try {
 				Remove-WindowsCapability -Online -Name $InstalledCapability.Name  | Out-Null
-			} catch {}
+			}
+			catch {}
 		}
 	}
 }
 
 # Step 11C: Add features on demand
-if ($config.Config.AddFeatures.Feature.Count -gt 0)
-{
+if ($config.Config.AddFeatures.Feature.Count -gt 0) {
 	$config.Config.AddFeatures.Feature | ForEach-Object {
 		Log "Adding Windows feature: $_"
 		try {
@@ -331,12 +325,12 @@ if ($config.Config.AddFeatures.Feature.Count -gt 0)
 			if ($result.RestartNeeded) {
 				Log "  Feature $_ was installed but requires a restart"
 			}
-		} catch {}
+		}
+		catch {}
 	}
 }
 
-if ($currentWU -eq 1)
-{
+if ($currentWU -eq 1) {
 	Log "Turning on WSUS"
 	Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU"  -Name "UseWuServer" -Value 1
 	Restart-Service wuauserv
@@ -356,8 +350,7 @@ if ($config.Config.RegisteredOwner) {
 }
 
 # STEP 14: Configure OEM branding info
-if ($config.Config.OEMInfo)
-{
+if ($config.Config.OEMInfo) {
 	Log "Configuring OEM branding info"
 
 	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 2>&1 | Out-Null
@@ -370,8 +363,7 @@ if ($config.Config.OEMInfo)
 }
 
 # STEP 15: Enable UE-V
-if ($config.Config.SkipUEV -ine "true") 
-{
+if ($config.Config.SkipUEV -ine "true") {
 	Log "Enabling UE-V"
 	Enable-UEV
 	Set-UevConfiguration -Computer -SettingsStoragePath "%OneDriveCommercial%\UEV" -SyncMethod External -DisableWaitForSyncOnLogon
@@ -389,8 +381,7 @@ Log "Turning off network location fly-out"
 
 # STEP 17: Remove the registry keys for Dev Home and Outlook New
 # This is a workaround for the issue where the Dev Home and Outlook New apps are installed by default
-if ($config.Config.SkipAutoinstallingApps -ine "true") 
-{
+if ($config.Config.SkipAutoinstallingApps -ine "true") {
 	Log "Disabling Windows 11 Dev Home and Outlook New"
 	$DevHome = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate"
 	$OutlookNew = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate"
@@ -408,24 +399,25 @@ if ($config.Config.SkipAutoinstallingApps -ine "true")
 
 # STEP 18: WinGet installs
 if ($config.Config.SkipWinGet -ne 'true') {
-    # Ensure NuGet provider before installing modules
-    Check-NuGetProvider 
+	# Ensure NuGet provider before installing modules
+	Check-NuGetProvider 
 
-    Log 'Installing WinGet.Client module'
-    Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+	Log 'Installing WinGet.Client module'
+	Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
 	Log 'Installing Lastest Winget package and dependencies'
-    Repair-WinGetPackageManager -AllUsers -Force -Latest | Out-Null
+	Repair-WinGetPackageManager -AllUsers -Force -Latest | Out-Null
 
-    # $wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
-    foreach ($id in $config.Config.WinGetInstall.Id) {
-        Log "WinGet installing: $id"
+	# $wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
+	foreach ($id in $config.Config.WinGetInstall.Id) {
+		Log "WinGet installing: $id"
 		try {
-        & winget.exe install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
-		} catch {}
-    }
+			& winget.exe install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
+		}
+		catch {}
+	}
 	
 } else {
-    Log 'Skipping WinGet installs'
+	Log 'Skipping WinGet installs'
 }
 
 # STEP 19: Disable extra APv2 pages (too late to do anything about the EULA), see https://call4cloud.nl/autopilot-device-preparation-hide-privacy-settings/
@@ -435,35 +427,42 @@ if ($config.Config.SkipAPv2 -ine "true") {
 	New-ItemProperty -Path $registryPath -Name "DisableVoice" -Value 1 -PropertyType DWord -Force | Out-Null
 	New-ItemProperty -Path $registryPath -Name "PrivacyConsentStatus" -Value 1 -PropertyType DWord -Force | Out-Null
 	New-ItemProperty -Path $registryPath -Name "ProtectYourPC" -Value 3 -PropertyType DWord -Force | Out-Null
-    Log 'APv2 extra pages disabled'
+	Log 'APv2 extra pages disabled'
 } else {
-    Log 'Skipping APv2 tweaks'
+	Log 'Skipping APv2 tweaks'
 }
 
 # STEP 20: Updates & Inbox-App script
 if ($config.Config.SkipUpdates -ne 'true') {
-    try {
+	try {
 
 		#Nuget v 2.8.5.201 is required to import mtniehaus's PS Gallery Script Update-InboxApp
-        $minrequired = [version]'2.8.5.201'
-		Check-NuGetProvider -MinimumVersion $required
+		$minrequired = [version]'2.8.5.201'
+		Check-NuGetProvider -MinimumVersion $minrequired
 
 		Log 'Installing Update-InboxApp script'
-        Install-Script Update-InboxApp -Force | Out-Null
+		Install-Script Update-InboxApp -Force | Out-Null
 
-        Log 'Updating inbox apps'
-        Get-AppxPackage | Select-Object -Unique PackageFamilyName | Update-InboxApp.ps1
+		Log 'Updating inbox apps'
+		Get-AppxPackage | Select-Object -Unique PackageFamilyName | Update-InboxApp.ps1
 
-        Log 'Triggering Windows Update scan'
-        $ns = 'Root\cimv2\mdm\dmmap'
-        $class = 'MDM_EnterpriseModernAppManagement_AppManagement01'
-        Get-CimInstance -Namespace $ns -ClassName $class | Invoke-CimMethod -MethodName UpdateScanMethod
-    }
-    catch {
-        Log "Error Updating InBox- Appsin STEP 20: $_"
-    }
+		Log 'Triggering Windows Update scan'
+		$ns = 'Root\cimv2\mdm\dmmap'
+		$class = 'MDM_EnterpriseModernAppManagement_AppManagement01'
+		Get-CimInstance -Namespace $ns -ClassName $class | Invoke-CimMethod -MethodName UpdateScanMethod
+	}
+	catch {
+		Log "Error Updating InBox- Appsin STEP 20: $_"
+	}
 } else {
-    Log 'Skipping updates'
+	Log 'Skipping updates'
+}
+
+# STEP 21: Skip FSIA and turn off delayed desktop switch
+if ($config.Config.SkipShowDesktopFaster -ine "true") {
+	$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+	New-ItemProperty -Path $registryPath -Name "EnableFirstLogonAnimation" -Value 1 -PropertyType DWord -Force | Out-Null
+	New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitch" -Value 0 -PropertyType DWord -Force | Out-Null
 }
 
 # CLEANUP: Unload default user registry
@@ -477,10 +476,10 @@ $runTime = $stopUTC - $startUTC
 
 # Format the runtime with hours, minutes, and seconds
 if ($runTime.TotalHours -ge 1) {
-    $runTimeFormatted = 'Duration: {0:hh} hr {0:mm} min {0:ss} sec' -f $runTime
+	$runTimeFormatted = 'Duration: {0:hh} hr {0:mm} min {0:ss} sec' -f $runTime
 }
 else {
-    $runTimeFormatted = 'Duration: {0:mm} min {0:ss} sec' -f $runTime
+	$runTimeFormatted = 'Duration: {0:mm} min {0:ss} sec' -f $runTime
 }
 
 Log 'Autopilot Branding Complete'
