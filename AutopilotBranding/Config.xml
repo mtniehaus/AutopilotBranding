@@ -10,7 +10,8 @@
   <SkipTheme>false</SkipTheme>
   <SkipLockScreen>false</SkipLockScreen>
   <SkipAutoinstallingApps>false</SkipAutoinstallingApps>
-  
+   <!-- Only set 'SkipDisableWidgets' to False if you want to completely disable Widgets-->
+  <SkipDisableWidgets>true</SkipDisableWidgets> 
   <!-- Settings for various items-->
   <TimeZone></TimeZone>
   <RemoveApps>
