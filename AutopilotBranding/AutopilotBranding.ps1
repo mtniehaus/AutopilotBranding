@@ -447,7 +447,8 @@ if ($config.Config.SkipUpdates -ne 'true') {
 		Install-Script Update-InboxApp -Force | Out-Null
 
 		Log 'Updating inbox apps'
-		Get-AppxPackage | Select-Object -Unique PackageFamilyName | Update-InboxApp.ps1
+		# The path might not be set right to find this, so we'll hard-code the location
+		Get-AppxPackage -AllUsers | Select-Object -Unique PackageFamilyName | . "C:\Program Files\WindowsPowerShell\Scripts\Update-InboxApp.ps1"
 	} catch {
 		Log "Error updating in-box apps: $_"
 	}
