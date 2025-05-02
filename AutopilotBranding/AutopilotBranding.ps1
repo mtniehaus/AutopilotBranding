@@ -27,6 +27,7 @@ v3.0.0 - 2025-04-17 - Lots of improvements and additions based on feedback
 v3.0.1 - 2025-04-18 - Fixed OneDriveSetup bugs
 v3.0.2 - 2025-04-19 - Added a -Force option when installing the Update-InboxApp script; added -AllUsers when removing provisioned in-box apps
 #>
+
 function Log() {
 	[CmdletBinding()]
 	param (
@@ -36,6 +37,37 @@ function Log() {
 	$ts = get-date -f "yyyy/MM/dd hh:mm:ss tt"
 	Write-Output "$ts $message"
 }
+
+
+function Check-NuGetProvider {
+    [CmdletBinding()]
+    param (
+        [version]$MinimumVersion = [version]'2.8.5.201'
+    )
+    $provider = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue |
+                Sort-Object Version -Descending |
+                Select-Object -First 1
+
+    if (-not $provider) {
+        Log 'NuGet Provider Package not detected, installing...'
+        Install-PackageProvider -Name NuGet -Force | Out-Null
+        }
+    Elseif ($provider.Version -lt $MinimumVersion) {
+        Log "NuGet provider v$($provider.Version) is less than required v$MinimumVersion; updating."
+        Install-PackageProvider -Name NuGet -Force | Out-Null
+        
+    }
+	else{
+	Log "NuGet provider meets min requirements (v:$($provider.Version))."
+    }
+    
+}
+
+#Get the Current start time in UTC format, so that Time Zone Changes don't affect total runtime calculation
+$startUtc = [datetime]::UtcNow
+# Don't show progress bar for Add-AppxPackage - there's a weird issue where the progress stays on the screen after the apps are installed
+$OrginalProgressPreference = $ProgressPreference
+$ProgressPreference = 'SilentlyContinue'
 
 # If we are running as a 32-bit process on an x64 system, re-launch as a 64-bit process
 if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64")
@@ -66,7 +98,7 @@ Log "Loading configuration: $($installFolder)Config.xml"
 [Xml]$config = Get-Content "$($installFolder)Config.xml"
 
 # PREP: Load the default user registry
-reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Host
+reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Null
 
 # STEP 1: Apply a custom start menu and taskbar layout
 $ci = Get-ComputerInfo
@@ -89,9 +121,9 @@ if ($ci.OsBuildNumber -le 22000) {
 		Log "Importing Taskbar layout: $($installFolder)TaskbarLayoutModification.xml"
 		MkDir -Path "C:\Windows\OEM\" -Force -ErrorAction SilentlyContinue | Out-Null
 		Copy-Item "$($installFolder)TaskbarLayoutModification.xml" "C:\Windows\OEM\TaskbarLayoutModification.xml" -Force
-		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 2>&1 | Out-Host
+		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 2>&1 | Out-Null
 		Log "Unpin the Microsoft Store app from the taskbar"
-		& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+		& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 	} else {
 		Log "Skipping Taskbar layout (Windows 11)"
 	}
@@ -105,8 +137,8 @@ if ($config.Config.SkipTheme -ine "true") {
 	Mkdir "C:\Windows\web\wallpaper\Autopilot" -Force | Out-Null
 	Copy-Item "$installFolder\Autopilot.jpg" "C:\Windows\web\wallpaper\Autopilot\Autopilot.jpg" -Force
 	Log "Setting Autopilot theme as the new user default"
-	& reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 2>&1 | Out-Null
 } else {
 	Log "Skipping Autopilot theme"
 }
@@ -125,14 +157,14 @@ if ($config.Config.SkipLockScreen -ine "true") {
 	New-ItemProperty -Path $RegPath -Name LockScreenImageStatus -Value 1 -PropertyType DWORD -Force | Out-Null
 
 	# STEP 2B: Stop Start menu from opening on first logon
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 
 	# STEP 2C: Hide "Learn more about this picture" from the desktop (so wallpaper will work)
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 
 	# STEP 2D: Disable Windows Spotlight as per https://github.com/mtniehaus/AutopilotBranding/issues/13#issuecomment-2449224828 (so wallpaper will work)
 	Log "Disabling Windows Spotlight for Desktop"
-	& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 
 } else {
 	Log "Skipping lock screen image"
@@ -141,7 +173,7 @@ if ($config.Config.SkipLockScreen -ine "true") {
 # STEP 3: Left Align Start Button in the default user profile, users can change it if they want
 if ($config.Config.SkipLeftAlignStart -ine "true") {
 	Log "Configuring left aligned Start menu"
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAl /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAl /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
 } else {
 	Log "Skipping Left align start"
 }
@@ -210,6 +242,7 @@ $config.Config.RemoveApps.App | ForEach-Object {
 
 # STEP 7: Install OneDrive per machine
 if ($config.Config.OneDriveSetup) {
+   
 	$dest = "$($env:TEMP)\OneDriveSetup.exe"
 	$client = new-object System.Net.WebClient
 	if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
@@ -225,18 +258,19 @@ if ($config.Config.OneDriveSetup) {
 	Log "OneDriveSetup exit code: $($proc.ExitCode)"
 
 	Log "Making sure the Run key exists"
-	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /f /reg:64 2>&1 | Out-Host
-	& reg.exe query "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /f /reg:64 2>&1 | Out-Null
+	& reg.exe query "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /reg:64 2>&1 | Out-Null
 	Log "Changing OneDriveSetup value to point to the machine wide EXE"
 	# Quotes are so problematic, we'll use the more risky approach and hope garbage collection cleans it up later
 	Set-ItemProperty -Path "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" -Name OneDriveSetup -Value """C:\Program Files\Microsoft OneDrive\Onedrive.exe"" /background" | Out-Null
+
 }
 
 # STEP 8: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
 Log "Turning off (old) Edge desktop shortcut"
-& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Host
+& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 Log "Turning off Edge desktop icon"
-& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
 
 # STEP 9: Add language packs
 Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
@@ -317,8 +351,8 @@ if ($config.Config.DefaultApps) {
 # STEP 13: Set registered user and organization
 if ($config.Config.RegisteredOwner) {
 	Log "Configuring registered user information"
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOwner /t REG_SZ /d "$($config.Config.RegisteredOwner)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOrganization /t REG_SZ /d "$($config.Config.RegisteredOrganization)" /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOwner /t REG_SZ /d "$($config.Config.RegisteredOwner)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOrganization /t REG_SZ /d "$($config.Config.RegisteredOrganization)" /f /reg:64 2>&1 | Out-Null
 }
 
 # STEP 14: Configure OEM branding info
@@ -326,13 +360,13 @@ if ($config.Config.OEMInfo)
 {
 	Log "Configuring OEM branding info"
 
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Model /t REG_SZ /d "$($config.Config.OEMInfo.Model)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 2>&1 | Out-Host
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportURL /t REG_SZ /d "$($config.Config.OEMInfo.SupportURL)" /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Model /t REG_SZ /d "$($config.Config.OEMInfo.Model)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 2>&1 | Out-Null
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportURL /t REG_SZ /d "$($config.Config.OEMInfo.SupportURL)" /f /reg:64 2>&1 | Out-Null
 	Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force
-	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 | Out-Host
+	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 | Out-Null
 }
 
 # STEP 15: Enable UE-V
@@ -373,14 +407,25 @@ if ($config.Config.SkipAutoinstallingApps -ine "true")
 }
 
 # STEP 18: WinGet installs
-if ($config.Config.SkipWinGet -ine "true") {
-	$winget = (Get-ChildItem -Path "C:\Program Files\WindowsApps" -Recurse -Filter "winget.exe").FullName
-	$config.Config.WinGetInstall.Id | ForEach-Object {
-		Log "Installing $_"
+if ($config.Config.SkipWinGet -ne 'true') {
+    # Ensure NuGet provider before installing modules
+    Check-NuGetProvider 
+
+    Log 'Installing WinGet.Client module'
+    Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+	Log 'Installing Lastest Winget package and dependencies'
+    Repair-WinGetPackageManager -AllUsers -Force -Latest | Out-Null
+
+    # $wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
+    foreach ($id in $config.Config.WinGetInstall.Id) {
+        Log "WinGet installing: $id"
 		try {
-			& $winget install "$_" --accept-package-agreements --accept-source-agreements --scope machine
+        & winget.exe install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
 		} catch {}
-	}
+    }
+	
+} else {
+    Log 'Skipping WinGet installs'
 }
 
 # STEP 19: Disable extra APv2 pages (too late to do anything about the EULA), see https://call4cloud.nl/autopilot-device-preparation-hide-privacy-settings/
@@ -390,49 +435,56 @@ if ($config.Config.SkipAPv2 -ine "true") {
 	New-ItemProperty -Path $registryPath -Name "DisableVoice" -Value 1 -PropertyType DWord -Force | Out-Null
 	New-ItemProperty -Path $registryPath -Name "PrivacyConsentStatus" -Value 1 -PropertyType DWord -Force | Out-Null
 	New-ItemProperty -Path $registryPath -Name "ProtectYourPC" -Value 3 -PropertyType DWord -Force | Out-Null
-}
-
-# STEP 20: Try to get Windows to update stuff
-if ($config.Config.SkipUpdates -ine "true") {
-	try {
-		Log "Check for Nuget Package"
-		$requiredVersion = [version]'2.8.5.201'
-		$providerName = "NuGet"
-		$packageProvider = Get-PackageProvider -Name $providerName -ListAvailable -ErrorAction SilentlyContinue | out-Null
-		if ($packageProvider -ne $null) {
-   		 	# Now try getting the installed version specifically
-		 	Log "NuGet Found, checking Version"
-			 $installedVersion = $packageProvider.Version
-		 if ($installedVersion -ge $requiredVersion) {
-        	Log "Nuget Meets requirements."
-    	} else {
-       	 	Log "Nuget Needs Update"
-			Install-PackageProvider -Name $providerName -Force | Out-Null
-   	    }
-    	} 
-		else {
-    		Log "Nuget Package Missing. Installing.."
-			Install-PackageProvider -Name $providerName -Force | Out-Null
-		}
-		Log "Install Update Inbox-App Script"
-		Install-Script Update-InboxApp -Force
-		Log "Updating Inbox-Apps"
-		Get-AppxPackage | Select-Object -Unique PackageFamilyName | Update-InboxApp.ps1
-		Log "Kicking off a Windows Update scan"
-		$Namespace = "Root\cimv2\mdm\dmmap"
-		$ClassName = "MDM_EnterpriseModernAppManagement_AppManagement01"
-		Get-CimInstance -Namespace $Namespace -ClassName $ClassName |
-		Invoke-CimMethod -MethodName UpdateScanMethod
-	} catch {}
+    Log 'APv2 extra pages disabled'
 } else {
-	Log "Skipping updates"
+    Log 'Skipping APv2 tweaks'
 }
 
-# CLEANUP: Unload the default registry profile
+# STEP 20: Updates & Inbox-App script
+if ($config.Config.SkipUpdates -ne 'true') {
+    try {
+
+		#Nuget v 2.8.5.201 is required to import mtniehaus's PS Gallery Script Update-InboxApp
+        $minrequired = [version]'2.8.5.201'
+		Check-NuGetProvider -MinimumVersion $required
+
+		Log 'Installing Update-InboxApp script'
+        Install-Script Update-InboxApp -Force | Out-Null
+
+        Log 'Updating inbox apps'
+        Get-AppxPackage | Select-Object -Unique PackageFamilyName | Update-InboxApp.ps1
+
+        Log 'Triggering Windows Update scan'
+        $ns = 'Root\cimv2\mdm\dmmap'
+        $class = 'MDM_EnterpriseModernAppManagement_AppManagement01'
+        Get-CimInstance -Namespace $ns -ClassName $class | Invoke-CimMethod -MethodName UpdateScanMethod
+    }
+    catch {
+        Log "Error Updating InBox- Appsin STEP 20: $_"
+    }
+} else {
+    Log 'Skipping updates'
+}
+
+# CLEANUP: Unload default user registry
 [GC]::Collect()
-reg.exe unload HKLM\TempUser | Out-Host
+reg.exe unload HKLM\TempUser | Out-Null
 
-Log "AutoPilot Branding Completed"
-Write-Host "All done!"
+$stopUtc = [datetime]::UtcNow
 
+# Calculate the total run time
+$runTime = $stopUTC - $startUTC
+
+# Format the runtime with hours, minutes, and seconds
+if ($runTime.TotalHours -ge 1) {
+    $runTimeFormatted = 'Duration: {0:hh} hr {0:mm} min {0:ss} sec' -f $runTime
+}
+else {
+    $runTimeFormatted = 'Duration: {0:mm} min {0:ss} sec' -f $runTime
+}
+
+Log 'Autopilot Branding Complete'
+Log "Total Script $($runTimeFormatted)"
+
+$ProgressPreference = $OrginalProgressPreference 
 Stop-Transcript
