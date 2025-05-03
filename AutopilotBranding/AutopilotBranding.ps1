@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.3
+.VERSION 3.0.4
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -27,6 +27,7 @@ v3.0.0 - 2025-04-17 - Lots of improvements and additions based on feedback
 v3.0.1 - 2025-04-18 - Fixed OneDriveSetup bugs
 v3.0.2 - 2025-04-19 - Added a -Force option when installing the Update-InboxApp script; added -AllUsers when removing provisioned in-box apps
 v3.0.3 - 2025-05-02 - Additional fixes based on user feedback; tweaked script formatting; added FSIA, desktop switch logic
+v3.0.4 - 2025-05-02 - Fixed FSIA default (should be 0)
 #>
 
 function Log() {
