@@ -467,7 +467,7 @@ if ($config.Config.SkipUpdates -ne 'true') {
 # STEP 21: Skip FSIA and turn off delayed desktop switch
 if ($config.Config.SkipShowDesktopFaster -ine "true") {
 	$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
-	New-ItemProperty -Path $registryPath -Name "EnableFirstLogonAnimation" -Value 1 -PropertyType DWord -Force | Out-Null
+	New-ItemProperty -Path $registryPath -Name "EnableFirstLogonAnimation" -Value 0 -PropertyType DWord -Force | Out-Null
 	New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitch" -Value 0 -PropertyType DWord -Force | Out-Null
 }
 
