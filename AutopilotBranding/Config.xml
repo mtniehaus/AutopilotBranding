@@ -49,9 +49,6 @@
     <App>Microsoft.XboxSpeechToTextOverlay</App>
     <App>MicrosoftCorporationII.MicrosoftFamily</App>
     <App>MicrosoftTeams</App>
-    <!-- Widgets, weather -->
-    <App>MicrosoftWindows.Client.WebExperience</App>
-    <App>MicrosoftWindows.CrossDevice</App>
     <!-- Microsoft Copilot -->
     <App>9NHT9RB2F4HD</App>
   </RemoveApps>
