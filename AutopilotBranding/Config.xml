@@ -11,6 +11,7 @@
   <SkipLockScreen>false</SkipLockScreen>
   <SkipAutoinstallingApps>false</SkipAutoinstallingApps>
   <SkipShowDesktopFaster>false</SkipShowDesktopFaster>
+  <SkipAPv2>false</SkipAPv2>
    <!-- Only set 'SkipDisableWidgets' to False if you want to completely disable Widgets-->
   <SkipDisableWidgets>true</SkipDisableWidgets> 
   <!-- Settings for various items-->
