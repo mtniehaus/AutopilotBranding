@@ -200,7 +200,7 @@ if ($config.Config.SkipHideWidgets -ine "true") {
 
 # STEP 4A: Disable Widgets (Grey out Settings Toggle)
 
-if ($config.Config.SkipDisableWidgets -ine "false") {
+if ($config.Config.SkipDisableWidgets -ine "true") {
 
 	# GPO settings below will completely disable Widgets, see:https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests#allownewsandinterests
 	Log "Disabling Widgets"
