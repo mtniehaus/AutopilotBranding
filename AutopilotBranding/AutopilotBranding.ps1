@@ -470,7 +470,7 @@ if ($config.Config.SkipUpdates -ne 'true') {
 if ($config.Config.SkipShowDesktopFaster -ine "true") {
 	$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 	New-ItemProperty -Path $registryPath -Name "EnableFirstLogonAnimation" -Value 0 -PropertyType DWord -Force | Out-Null
-	New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitch" -Value 0 -PropertyType DWord -Force | Out-Null
+	New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitchTimeout" -Value 0 -PropertyType DWord -Force | Out-Null
 }
 
 # CLEANUP: Unload default user registry
