@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.4
+.VERSION 3.0.5
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -28,6 +28,7 @@ v3.0.1 - 2025-04-18 - Fixed OneDriveSetup bugs
 v3.0.2 - 2025-04-19 - Added a -Force option when installing the Update-InboxApp script; added -AllUsers when removing provisioned in-box apps
 v3.0.3 - 2025-05-02 - Additional fixes based on user feedback; tweaked script formatting; added FSIA, desktop switch logic
 v3.0.4 - 2025-05-02 - Fixed FSIA default (should be 0)
+v3.0.5 - 2025-05-14 - Remove logic that removed widgets, cross-device app.
 #>
 
 function Log() {
@@ -67,7 +68,7 @@ function Check-NuGetProvider {
 $startUtc = [datetime]::UtcNow
 
 # Don't show progress bar for Add-AppxPackage - there's a weird issue where the progress stays on the screen after the apps are installed
-$OrginalProgressPreference = $ProgressPreference
+$OriginalProgressPreference = $ProgressPreference
 $ProgressPreference = 'SilentlyContinue'
 
 # If we are running as a 32-bit process on an x64 system, re-launch as a 64-bit process
@@ -199,7 +200,7 @@ if ($config.Config.SkipHideWidgets -ine "true") {
 
 # STEP 4A: Disable Widgets (Grey out Settings Toggle)
 
-if ($config.Config.SkipDisableWidgets -ine "false") {
+if ($config.Config.SkipDisableWidgets -ine "true") {
 
 	# GPO settings below will completely disable Widgets, see:https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests#allownewsandinterests
 	Log "Disabling Widgets"
@@ -469,7 +470,7 @@ if ($config.Config.SkipUpdates -ne 'true') {
 if ($config.Config.SkipShowDesktopFaster -ine "true") {
 	$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 	New-ItemProperty -Path $registryPath -Name "EnableFirstLogonAnimation" -Value 0 -PropertyType DWord -Force | Out-Null
-	New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitch" -Value 0 -PropertyType DWord -Force | Out-Null
+	New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitchTimeout" -Value 0 -PropertyType DWord -Force | Out-Null
 }
 
 # CLEANUP: Unload default user registry
@@ -492,5 +493,5 @@ else {
 Log 'Autopilot Branding Complete'
 Log "Total Script $($runTimeFormatted)"
 
-$ProgressPreference = $OrginalProgressPreference 
+$ProgressPreference = $OriginalProgressPreference 
 Stop-Transcript
