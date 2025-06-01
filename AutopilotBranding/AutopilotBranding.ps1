@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.5
+.VERSION 3.1.0
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -29,6 +29,7 @@ v3.0.2 - 2025-04-19 - Added a -Force option when installing the Update-InboxApp 
 v3.0.3 - 2025-05-02 - Additional fixes based on user feedback; tweaked script formatting; added FSIA, desktop switch logic
 v3.0.4 - 2025-05-02 - Fixed FSIA default (should be 0)
 v3.0.5 - 2025-05-14 - Remove logic that removed widgets, cross-device app.
+v3.1.0 - 2025-06-01 - Modified WinGet logic, switched to PowerShell for creating package
 #>
 
 function Log() {
@@ -409,11 +410,11 @@ if ($config.Config.SkipWinGet -ne 'true') {
 	Log 'Installing Lastest Winget package and dependencies'
 	Repair-WinGetPackageManager -AllUsers -Force -Latest | Out-Null
 
-	# $wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
+	$wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
 	foreach ($id in $config.Config.WinGetInstall.Id) {
 		Log "WinGet installing: $id"
 		try {
-			& winget.exe install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
+			& "$wingetExe" install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
 		}
 		catch {}
 	}
@@ -442,7 +443,7 @@ if ($config.Config.SkipUpdates -ne 'true') {
 		$minrequired = [version]'2.8.5.201'
 		Check-NuGetProvider -MinimumVersion $minrequired
 	} catch {
-		Log "Error updating WinGet"
+		Log "Error updating NuGet"
 	}
 	try {
 		Log 'Installing Update-InboxApp script'
