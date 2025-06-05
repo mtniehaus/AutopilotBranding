@@ -271,6 +271,11 @@ Log "Turning off (old) Edge desktop shortcut"
 Log "Turning off Edge desktop icon"
 & reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
 
+# STEP 8A: Force Edge update since the timing of the update is dependant upon various factors, this can be unpredictable and can result in webview2 error for app like the new Outlook
+if ($config.Config.SkipEdgeUpdate -ine "true") {
+	Start-Process -FilePath "C:\Program Files (x86)\Microsoft\EdgeUpdate\MicrosoftEdgeUpdate.exe" -argumentlist "/silent /install appguid={56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}&appname=Microsoft%20Edge&needsadmin=True"
+}
+
 # STEP 9: Add language packs
 Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
 	Log "Adding language pack: $($_.FullName)"
