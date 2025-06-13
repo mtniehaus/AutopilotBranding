@@ -12,6 +12,7 @@
   <SkipAutoinstallingApps>false</SkipAutoinstallingApps>
   <SkipShowDesktopFaster>false</SkipShowDesktopFaster>
   <SkipAPv2>false</SkipAPv2>
+  <SkipEdgeUpdate>false</SkipEdgeUpdate>
    <!-- Only set 'SkipDisableWidgets' to False if you want to completely disable Widgets-->
   <SkipDisableWidgets>true</SkipDisableWidgets> 
   <!-- Settings for various items-->
@@ -60,6 +61,8 @@
   </WinGetInstall>
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
   <OneDriveARMSetup>https://go.microsoft.com/fwlink/?linkid=2282608</OneDriveARMSetup>
+  <EdgeBusinessMSI>https://go.microsoft.com/fwlink/?LinkID=2093437</EdgeBusinessMSI>
+  <EdgeBusinessARM></EdgeBusinessARM>
   <AddFeatures>
     <Feature>Microsoft.Windows.Sense.Client~~~~</Feature>
     <!-- If you do add a language pack, make sure you add these language add-ons for each one.

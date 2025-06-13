@@ -271,6 +271,40 @@ Log "Turning off (old) Edge desktop shortcut"
 Log "Turning off Edge desktop icon"
 & reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
 
+# STEP 8A: Attempt to Donwload and install Latest Edge for Business MSI from Evergreen URL
+if ($config.Config.SkipEdgeUpdate -ine "true") {
+   	
+	$client = new-object System.Net.WebClient
+    $dest = "$($env:TEMP)\MicrosoftEdgeEnterpriseX64.msi"
+	$url = $config.Config.EdgeBusinessMSI
+	write-host "Downloading Latest Edge for Business: $url"
+	$client.DownloadFile($url, $dest)
+      
+	# Edge Version is buried in Comments of MSI. Parse the first 13 charaters to pull out Version number.
+    $shell = New-Object -ComObject Shell.Application
+    $folder = $shell.NameSpace((Split-Path $dest))
+    $file = $folder.ParseName((Split-Path $dest -Leaf))
+    $comment = $folder.GetDetailsOf($file, 24) # 24 is the index for comments
+    $versionOnly = $comment.Substring(0, [Math]::Min(13, $comment.Length))
+
+    write-host "Installing Edge for Business V:$versionONly"
+	$arguments = "/i `"$($dest)`" /qn /L*v $($env:TEMP)\EdgeBusiness.log"
+	#$arguments = "/i `"$($dest)`""
+    $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -PassThru -WindowStyle Hidden
+    $proc.WaitForExit()
+	if ($proc.ExitCode -ne 0) {
+    #Write-Error "Installation failed (exit code $($proc.ExitCode))"
+    Write-Host "MSI Error.Trying to Run MicrosoftEdgeUpdate.exe instead"
+    $proc = Start-Process -FilePath "C:\Program Files (x86)\Microsoft\EdgeUpdate\MicrosoftEdgeUpdate.exe" -argumentlist "/silent /install appguid={56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}&appname=Microsoft%20Edge&needsadmin=True" -PassThru -WindowStyle Hidden
+    $proc.WaitForExit()
+    Write-Host "Edge Updater Triggered" 
+
+} else {
+    Write-Host "Edge for Business Updated"
+}
+
+}
+
 # STEP 9: Add language packs
 Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
 	Log "Adding language pack: $($_.FullName)"
