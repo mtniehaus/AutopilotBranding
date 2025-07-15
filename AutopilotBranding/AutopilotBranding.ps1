@@ -112,9 +112,12 @@ if ($ci.OsBuildNumber -le 22000) {
 	}
 } else {
 	if ($config.Config.SkipStartLayout -ine "true") {
-		Log "Importing Start menu layout: $($installFolder)Start2.bin"
+		Log "Copying Start menu layout: $($installFolder)Start2.bin"
 		MkDir -Path "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState" -Force -ErrorAction SilentlyContinue | Out-Null
 		Copy-Item "$($installFolder)Start2.bin" "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState\Start2.bin" -Force
+		Log "Copying Start menu settings: $($installFolder)settings.dat"
+		MkDir -Path "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\Settings" -Force -ErrorAction SilentlyContinue | Out-Null
+		Copy-Item "$($installFolder)Start2.bin" "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\Settings\settings.dat" -Force
 	} else {
 		Log "Skipping Start layout (Windows 11)"
 	}
