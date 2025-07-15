@@ -182,19 +182,30 @@ if ($config.Config.SkipLeftAlignStart -ine "true") {
 if ($config.Config.SkipHideWidgets -ine "true") {
 	# This will fail on Windows 11 24H2 due to UCPD, see https://kolbi.cz/blog/2024/04/03/userchoice-protection-driver-ucpd-sys/
 	# New Work Around tested with 24H2 to disable widgets as a preference
-	if ($ci.OsBuildNumber -ge 26100) {
+	
+	Try{
+		Log "Attempting to Hide widgets via Reg Key"	
+		$output = & reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1
+		#write-host $output
+		if($LASTEXITCODE -ne 0) {
+		throw $output
+		}
+		Log "Widgets Hidden Completed"
+	}
+	catch{
+		$errorMessage = $_.Exception.Message
+		#Write-Host "This is the error: $errorMessage"
+		if ($errorMessage -like '*Access is denied*') {
+		Log "UCPD driver may active"
 		Log "Attempting Widget Hiding workaround (TaskbarDa)"
 		$regExePath = (Get-Command reg.exe).Source
 		$tempRegExe = "$($env:TEMP)\reg1.exe"
 		Copy-Item -Path $regExePath -Destination $tempRegExe -Force -ErrorAction Stop
-		& $tempRegExe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+		& $tempRegExe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
 		Remove-Item $tempRegExe -Force -ErrorAction SilentlyContinue
 		Log "Widget Workaround Completed"
-	} else {
-		Log "Hiding widgets"	
-		& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Host
+		}
 	}
-	
 } else {
 	Log "Skipping Hide widgets"
 }
