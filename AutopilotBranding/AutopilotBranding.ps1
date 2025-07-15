@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.1.0
+.VERSION 3.2.0
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -30,6 +30,7 @@ v3.0.3 - 2025-05-02 - Additional fixes based on user feedback; tweaked script fo
 v3.0.4 - 2025-05-02 - Fixed FSIA default (should be 0)
 v3.0.5 - 2025-05-14 - Remove logic that removed widgets, cross-device app.
 v3.1.0 - 2025-06-01 - Modified WinGet logic, switched to PowerShell for creating package
+v3.2.0 - 2025-07-15 - Packaging changes to makeapp.ps1
 #>
 
 function Log() {
@@ -182,8 +183,7 @@ if ($config.Config.SkipLeftAlignStart -ine "true") {
 if ($config.Config.SkipHideWidgets -ine "true") {
 	# This will fail on Windows 11 24H2 due to UCPD, see https://kolbi.cz/blog/2024/04/03/userchoice-protection-driver-ucpd-sys/
 	# New Work Around tested with 24H2 to disable widgets as a preference
-	
-	Try{
+	try {
 		Log "Attempting to Hide widgets via Reg Key"	
 		$output = & reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f /reg:64 2>&1
 		#write-host $output
@@ -192,7 +192,7 @@ if ($config.Config.SkipHideWidgets -ine "true") {
 		}
 		Log "Widgets Hidden Completed"
 	}
-	catch{
+	catch {
 		$errorMessage = $_.Exception.Message
 		#Write-Host "This is the error: $errorMessage"
 		if ($errorMessage -like '*Access is denied*') {
@@ -211,7 +211,6 @@ if ($config.Config.SkipHideWidgets -ine "true") {
 }
 
 # STEP 4A: Disable Widgets (Grey out Settings Toggle)
-
 if ($config.Config.SkipDisableWidgets -ine "true") {
 
 	# GPO settings below will completely disable Widgets, see:https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests#allownewsandinterests
@@ -250,6 +249,12 @@ $config.Config.RemoveApps.App | ForEach-Object {
 	}
 }
 
+# STEP 6A: Prevent Copilot PWA from being installed
+if ($config.Config.SkipRemoveCopilotPWA -ine "true") {
+	Log "Removing specified in-box provisioned apps"
+	reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoInstalledPWAs" /v CopilotPWAPreinstallCompleted /t REG_DWORD /d 1 /f /reg:64
+}
+
 # STEP 7: Install OneDrive per machine
 if ($config.Config.OneDriveSetup) {
    
@@ -273,7 +278,6 @@ if ($config.Config.OneDriveSetup) {
 	Log "Changing OneDriveSetup value to point to the machine wide EXE"
 	# Quotes are so problematic, we'll use the more risky approach and hope garbage collection cleans it up later
 	Set-ItemProperty -Path "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" -Name OneDriveSetup -Value """C:\Program Files\Microsoft OneDrive\Onedrive.exe"" /background" | Out-Null
-
 }
 
 # STEP 8: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)

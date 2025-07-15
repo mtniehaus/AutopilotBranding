@@ -13,8 +13,10 @@
   <SkipShowDesktopFaster>false</SkipShowDesktopFaster>
   <SkipAPv2>false</SkipAPv2>
   <SkipEdgeUpdate>false</SkipEdgeUpdate>
+  <SkipRemoveCopilotPWA>true</SkipRemoveCopilotPWA>
    <!-- Only set 'SkipDisableWidgets' to False if you want to completely disable Widgets-->
   <SkipDisableWidgets>true</SkipDisableWidgets> 
+
   <!-- Settings for various items-->
   <TimeZone></TimeZone>
   <RemoveApps>
@@ -51,6 +53,7 @@
     <App>Microsoft.XboxSpeechToTextOverlay</App>
     <App>MicrosoftCorporationII.MicrosoftFamily</App>
     <App>MicrosoftTeams</App>
+    <App>MSTeams</App>
     <!-- Microsoft Copilot -->
     <App>9NHT9RB2F4HD</App>
   </RemoveApps>
