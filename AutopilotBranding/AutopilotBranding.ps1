@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.2.0
+.VERSION 3.2.1
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -30,7 +30,8 @@ v3.0.3 - 2025-05-02 - Additional fixes based on user feedback; tweaked script fo
 v3.0.4 - 2025-05-02 - Fixed FSIA default (should be 0)
 v3.0.5 - 2025-05-14 - Remove logic that removed widgets, cross-device app.
 v3.1.0 - 2025-06-01 - Modified WinGet logic, switched to PowerShell for creating package
-v3.2.0 - 2025-07-15 - Packaging changes to makeapp.ps1
+v3.2.0 - 2025-07-15 - Various fixes (start menu layout, apps, etc.)
+v3.2.1 - 2025-07-15 - Updated makeapps.cmd to use PowerShell 7
 #>
 
 function Log() {
