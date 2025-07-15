@@ -414,7 +414,13 @@ if ($config.Config.OEMInfo) {
 	& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 | Out-Null
 }
 
-# STEP 15: Enable UE-V
+# STEP 15A: Force Enterprise SKU
+if ($config.Config.SkipEnterpriseGVLK -ine "true") {
+	Log "Forcing Enterprise SKU"
+	& changepk.exe /ProductKey NPPR9-FWDCX-D2C8J-H872K-2YT43
+}
+
+# STEP 15B: Enable UE-V
 if ($config.Config.SkipUEV -ine "true") {
 	Log "Enabling UE-V"
 	Enable-UEV

@@ -14,6 +14,7 @@
   <SkipAPv2>false</SkipAPv2>
   <SkipEdgeUpdate>false</SkipEdgeUpdate>
   <SkipRemoveCopilotPWA>true</SkipRemoveCopilotPWA>
+  <SkipEnterpriseGVLK>true<SkipEnterpriseGVLK>
    <!-- Only set 'SkipDisableWidgets' to False if you want to completely disable Widgets-->
   <SkipDisableWidgets>true</SkipDisableWidgets> 
 
