@@ -289,6 +289,7 @@ Log "Turning off (old) Edge desktop shortcut"
 & reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 Log "Turning off Edge desktop icon"
 & reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 2>&1 | Out-Null
+& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "RemoveDesktopShortcutDefault" /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 
 # STEP 8A: Attempt to Donwload and install Latest Edge for Business MSI from Evergreen URL
 if ($config.Config.SkipEdgeUpdate -ine "true") {
