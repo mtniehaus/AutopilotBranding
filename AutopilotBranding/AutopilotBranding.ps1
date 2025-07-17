@@ -465,23 +465,42 @@ if ($config.Config.SkipWinGet -ne 'true') {
 	# Ensure NuGet provider before installing modules
 	Check-NuGetProvider 
 
-	Log 'Installing WinGet.Client module'
-	Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+	#Log 'Installing WinGet.Client module'
+	Install-Module -Name Microsoft.WinGet.Client -Force -Scope AllUsers -Repository PSGallery | Out-Null
 	Log 'Installing Lastest Winget package and dependencies'
-	Repair-WinGetPackageManager -AllUsers -Force -Latest | Out-Null
-
-	$wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
+	Repair-WinGetPackageManager -Force -Latest | Out-Null  #-Allusers not supported in System Context so was removed.
+	
+	#Permalink for latest supported x64 version of vc_redist.x64
+	$VCppRedistributable_Url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+	#set temporary install file path
+	$VCppRedistributable_Path = Join-Path $env:TEMP 'vc_redist.x64.exe'
+	
+	Invoke-WebRequest -uri $VCppRedistributable_Url -outfile $VCppRedistributable_Path -UseBasicParsing
+	Start-Process -FilePath $VCppRedistributable_Path -ArgumentList "/install", "/quiet", "/norestart" -Wait
+	
+	#$wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
+	#Look for Winget.exe in the C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_* Folder
+	$WinGetResolve = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+	$wingetExe = $WinGetResolve[-1].Path
+	$wingetVer = & "$wingetExe" --version
+	Log "Winget version is: $wingetVer"
+	
+	#Cleanup VCredistrib setup file
+	Remove-Item $VCppRedistributable_Path -Force
+	
 	foreach ($id in $config.Config.WinGetInstall.Id) {
 		Log "WinGet installing: $id"
 		try {
 			& "$wingetExe" install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
 		}
-		catch {}
+		catch {
+			Write-host " I got Caught" }
 	}
 	
 } else {
 	Log 'Skipping WinGet installs'
 }
+
 
 # STEP 19: Disable extra APv2 pages (too late to do anything about the EULA), see https://call4cloud.nl/autopilot-device-preparation-hide-privacy-settings/
 if ($config.Config.SkipAPv2 -ine "true") {
