@@ -123,6 +123,7 @@ if ($IsOOBEComplete) {
 	if (-not $Force)
 	{
 		Log "OOBE is completed, bailing out without doing any configuration."
+  		Stop-Transcript
 		exit 0
 	} else {
 		Log "OOBE is completed but -Force specified, will run anyway."
