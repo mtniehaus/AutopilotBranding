@@ -23,11 +23,14 @@ if (-not $provider) {
 }
 
 # Install and import the module to create the .intunewin file
-Install-Module SvRooij.ContentPrep.Cmdlet -MinimumVersion 0.3.0
+Install-Module SvRooij.ContentPrep.Cmdlet -MinimumVersion 0.4.0
 Import-Module SvRooij.ContentPrep.Cmdlet
 
 # Create the .intunewin file
 if ($OutputFolder -eq "") {
     $OutputFolder = $PSScriptRoot
+}
+if (Test-Path "$OutputFolder\AutopilotBranding.intunewin") {
+    Remove-Item "$OutputFolder\AutopilotBranding.intunewin"
 }
 New-IntuneWinPackage -SourcePath $SourceFolder -SetupFile $SetupFile -DestinationPath $OutputFolder

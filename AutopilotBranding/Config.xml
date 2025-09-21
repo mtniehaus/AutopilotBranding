@@ -15,9 +15,10 @@
   <SkipEdgeUpdate>false</SkipEdgeUpdate>
   <SkipRemoveCopilotPWA>true</SkipRemoveCopilotPWA>
   <SkipEnterpriseGVLK>true</SkipEnterpriseGVLK>
-   <!-- Only set 'SkipDisableWidgets' to False if you want to completely disable Widgets-->
+   <!-- Only set 'SkipDisableWidgets' to false if you want to completely disable Widgets-->
   <SkipDisableWidgets>true</SkipDisableWidgets> 
-
+  <SkipChromeConfig>false</SkipChromeConfig>
+  
   <!-- Settings for various items-->
   <TimeZone></TimeZone>
   <RemoveApps>
