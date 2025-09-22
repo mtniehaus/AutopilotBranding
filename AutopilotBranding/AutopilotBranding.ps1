@@ -559,7 +559,7 @@ try
 		{
 			MkDir $dest -Force | Out-Null
 		}
-		Copy-Item ".\initial_preferences" "$dest\" -Force
+		Copy-Item "$($installFolder)initial_preferences" "$dest\" -Force
 		if (Test-Path "C:\Users\Public\Desktop\Google Chrome.lnk") {
 			Log "Removing Chrome desktop shortcut"
 			Remove-Item "C:\Users\Public\Desktop\Google Chrome.lnk" -Force
