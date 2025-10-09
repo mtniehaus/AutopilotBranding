@@ -192,6 +192,7 @@ try
 	if ($config.Config.SkipLockScreen -ine "true") {
 		Log "Configuring lock screen image"
 		$RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP"
+		Mkdir "C:\Windows\web\wallpaper\Autopilot" -Force | Out-Null
 		$LockScreenImage = "C:\Windows\web\wallpaper\Autopilot\AutopilotLock.jpg"
 		Copy-Item "$installFolder\AutopilotLock.jpg" $LockScreenImage -Force
 		if (!(Test-Path -Path $RegPath)) {
