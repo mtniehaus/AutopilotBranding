@@ -376,9 +376,11 @@ try
 	}
 
 	# STEP 9: Add language packs
-	Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
-		Log "Adding language pack: $($_.FullName)"
-		Add-WindowsPackage -Online -NoRestart -PackagePath $_.FullName
+	if (Test-Path "$($installFolder)LPs") {
+		Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
+			Log "Adding language pack: $($_.FullName)"
+			Add-WindowsPackage -Online -NoRestart -PackagePath $_.FullName
+		}
 	}
 
 	# STEP 10: Change language
