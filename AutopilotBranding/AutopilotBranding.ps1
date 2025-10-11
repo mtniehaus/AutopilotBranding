@@ -192,6 +192,7 @@ try
 	if ($config.Config.SkipLockScreen -ine "true") {
 		Log "Configuring lock screen image"
 		$RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP"
+		Mkdir "C:\Windows\web\wallpaper\Autopilot" -Force | Out-Null
 		$LockScreenImage = "C:\Windows\web\wallpaper\Autopilot\AutopilotLock.jpg"
 		Copy-Item "$installFolder\AutopilotLock.jpg" $LockScreenImage -Force
 		if (!(Test-Path -Path $RegPath)) {
@@ -375,9 +376,11 @@ try
 	}
 
 	# STEP 9: Add language packs
-	Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
-		Log "Adding language pack: $($_.FullName)"
-		Add-WindowsPackage -Online -NoRestart -PackagePath $_.FullName
+	if (Test-Path "$($installFolder)LPs") {
+		Get-ChildItem "$($installFolder)LPs" -Filter *.cab | ForEach-Object {
+			Log "Adding language pack: $($_.FullName)"
+			Add-WindowsPackage -Online -NoRestart -PackagePath $_.FullName
+		}
 	}
 
 	# STEP 10: Change language
