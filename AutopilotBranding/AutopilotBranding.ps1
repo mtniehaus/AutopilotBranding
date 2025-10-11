@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.3.0
+.VERSION 3.3.1
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -33,6 +33,7 @@ v3.1.0 - 2025-06-01 - Modified WinGet logic, switched to PowerShell for creating
 v3.2.0 - 2025-07-15 - Various fixes (start menu layout, apps, etc.)
 v3.2.1 - 2025-07-15 - Updated makeapps.cmd to use PowerShell 7
 v3.3.0 - 2025-09-20 - Added bookmark cleanup for Edge, Chrome. Fixed start menu config. Added Try/catch/finally. Added OOBE check.
+v3.3.1 - 2025-10-10 - Minor bug fixes
 #>
 
 [CmdletBinding()]
@@ -399,29 +400,40 @@ try
 
 	# Step 11A: Disable Optional features
 	if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0) {
-		$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object { $_.State -eq "Enabled" }
-		foreach ($EnabledFeature in $EnabledOptionalFeatures) {
-			if ($config.Config.DisableOptionalFeatures.Feature -contains $EnabledFeature.FeatureName) {
-				Log "Disabling Optional Feature:  $($EnabledFeature.FeatureName)"
-				try {
-					Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart | Out-Null
+		try {
+			$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object { $_.State -eq "Enabled" }
+			foreach ($EnabledFeature in $EnabledOptionalFeatures) {
+				if ($config.Config.DisableOptionalFeatures.Feature -contains $EnabledFeature.FeatureName) {
+					Log "Disabling Optional Feature:  $($EnabledFeature.FeatureName)"
+					try {
+						Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart | Out-Null
+					}
+					catch {}
 				}
-				catch {}
 			}
+			}
+		catch {
+			Log "Unexpected error querying Windows optional features: $_"
 		}
 	}
 
 	# Step 11B: Remove Windows Capabilities
 	if ($config.Config.RemoveCapability.Capability.Count -gt 0) {
-		$InstalledCapabilities = Get-WindowsCapability -Online | Where-Object { $_.State -eq "Installed" }
-		foreach ($InstalledCapability in $InstalledCapabilities) {
-			if ($config.Config.RemoveCapability.Capability -contains $InstalledCapability.Name.Split("~")[0]) {
-				Log "Removing Windows Capability:  $($InstalledCapability.Name)"
-				try {
-					Remove-WindowsCapability -Online -Name $InstalledCapability.Name  | Out-Null
+		try {
+			$InstalledCapabilities = Get-WindowsCapability -Online | Where-Object { $_.State -eq "Installed" }
+			foreach ($InstalledCapability in $InstalledCapabilities) {
+				if ($config.Config.RemoveCapability.Capability -contains $InstalledCapability.Name.Split("~")[0]) {
+					Log "Removing Windows Capability:  $($InstalledCapability.Name)"
+					try {
+						Remove-WindowsCapability -Online -Name $InstalledCapability.Name  | Out-Null
+					}
+					catch {
+						Log "  Unable to remove Windows capability: $_"
+					}
 				}
-				catch {}
 			}
+		} catch {
+			Log "Unexpected error querying Windows capabilities: $_"
 		}
 	}
 
@@ -435,7 +447,9 @@ try
 					Log "  Feature $_ was installed but requires a restart"
 				}
 			}
-			catch {}
+			catch {
+				Log "  Unable to add Windows capability: $_"
+			}
 		}
 	}
 
@@ -563,7 +577,7 @@ try
 		{
 			MkDir $dest -Force | Out-Null
 		}
-		Copy-Item ".\initial_preferences" "$dest\" -Force
+		Copy-Item "$PSScriptRoot\initial_preferences" "$dest\" -Force
 		if (Test-Path "C:\Users\Public\Desktop\Google Chrome.lnk") {
 			Log "Removing Chrome desktop shortcut"
 			Remove-Item "C:\Users\Public\Desktop\Google Chrome.lnk" -Force
