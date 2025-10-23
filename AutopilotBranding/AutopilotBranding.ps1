@@ -140,6 +140,7 @@ try
 	[Xml]$config = Get-Content "$($installFolder)Config.xml"
 
 	# PREP: Load the default user registry
+	Log "Loading Defualt User Registry Hive NTUSER.DAT"
 	reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Null
 
 	# STEP 1: Apply a custom start menu and taskbar layout
@@ -596,6 +597,11 @@ try
 		Log 'Skipping APv2 tweaks'
 	}
 
+	# CLEANUP: Unload default user registry
+	Log "Unloading Default user Registry"
+	[GC]::Collect()
+	reg.exe unload HKLM\TempUser | Out-Null
+	
 	# STEP 20: Updates & Inbox-App script
 	if ($config.Config.SkipUpdates -ne 'true') {
 		try {
@@ -630,6 +636,7 @@ try
 
 	# STEP 21: Skip FSIA and turn off delayed desktop switch
 	if ($config.Config.SkipShowDesktopFaster -ine "true") {
+		Log "Skipping FSIA and turning off delayed desktop switch"
 		$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 		New-ItemProperty -Path $registryPath -Name "EnableFirstLogonAnimation" -Value 0 -PropertyType DWord -Force | Out-Null
 		New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitchTimeout" -Value 0 -PropertyType DWord -Force | Out-Null
@@ -637,9 +644,7 @@ try
 } catch {
 	Log "Unhandled exception: $_"
 } finally {
-	# CLEANUP: Unload default user registry
-	[GC]::Collect()
-	reg.exe unload HKLM\TempUser | Out-Null
+Log "All Steps Completed"
 }
 
 $stopUtc = [datetime]::UtcNow
