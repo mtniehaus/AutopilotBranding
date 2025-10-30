@@ -370,11 +370,21 @@ try
 	}
 
 	# STEP 8B: Clean up any OEM-added bookmarks from the default user profile
-	$bookmarks = "C:\Users\Default\AppData\Local\Microsoft\Edge\User Data\Default\Bookmarks"
+	$bookmarks = "C:\Users\defaultuser0\AppData\Local\Microsoft\Edge\User Data\Default\Bookmarks"
 	if (Test-Path $bookmarks) {
 		Log "Removing Edge bookmarks folder from default profile"
 		Remove-Item $bookmarks -Force
 	}
+	$Bookmarksregpath = "HKLM:\SOFTWARE\Microsoft\MicrosoftEdge\Main\FavoriteBarItems"
+	if (test-path $Bookmarksregpath){
+	Remove-Item -path $Bookmarksregpath -Recurse -Force
+	Log "OEM Bookmarks Deleted"
+	}else{
+	Log "Key not found: $Bookmarksregpath"
+	}
+
+
+	
 
 	# STEP 9: Add language packs
 	if (Test-Path "$($installFolder)LPs") {
