@@ -370,7 +370,7 @@ try
 	}
 
 	# STEP 8B: Clean up any OEM-added bookmarks from the default user profile
-	$bookmarks = "C:\Users\default\AppData\Local\Microsoft\Edge\User Data\Default\Bookmarks"
+	$bookmarks = "C:\Users\Default\AppData\Local\Microsoft\Edge\User Data\Default\Bookmarks"
 	if (Test-Path $bookmarks) {
 		Log "Removing Edge bookmarks folder from default profile"
 		Remove-Item $bookmarks -Force
