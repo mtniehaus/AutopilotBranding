@@ -473,17 +473,32 @@ try
 	}
 
 	# STEP 14: Configure OEM branding info
+	
 	if ($config.Config.OEMInfo) {
 		Log "Configuring OEM branding info"
-
-		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 2>&1 | Out-Null
-		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Model /t REG_SZ /d "$($config.Config.OEMInfo.Model)" /f /reg:64 2>&1 | Out-Null
-		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 2>&1 | Out-Null
-		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 2>&1 | Out-Null
-		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportURL /t REG_SZ /d "$($config.Config.OEMInfo.SupportURL)" /f /reg:64 2>&1 | Out-Null
-		Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force
-		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 | Out-Null
+		$OEMpath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation'
+		
+		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 2>&1 #| Out-Null
+		New-ItemProperty -Path $OEMpath -Name 'Manufacturer' -PropertyType String -Value $config.Config.OEMInfo.Manufacturer -Force | Out-Null
+		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Model /t REG_SZ /d "$($config.Config.OEMInfo.Model)" /f /reg:64 2>&1 #| Out-Null
+		New-ItemProperty -Path $OEMpath -Name 'Model' -PropertyType String -Value $config.Config.OEMInfo.Model -Force | Out-Null
+		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 2>&1 #| Out-Null
+		New-ItemProperty -Path $OEMpath -Name 'SupportPhone' -PropertyType String -Value $config.Config.OEMInfo.SupportPhone -Force | Out-Null
+		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 2>&1 #| Out-Null
+		New-ItemProperty -Path $OEMpath -Name 'SupportHours' -PropertyType String -Value $config.Config.OEMInfo.SupportHours -Force | Out-Null
+		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportURL /t REG_SZ /d "$($config.Config.OEMInfo.SupportURL)" /f /reg:64 2>&1 #| Out-Null
+		New-ItemProperty -Path $OEMpath -Name 'SupportURL' -PropertyType String -Value $config.Config.OEMInfo.SupportURL -Force | Out-Null
+		
+	if (Test-Path "$installFolder\$($config.Config.OEMInfo.Logo)") { 
+		Log "BMP Logo Found copying.."
+    	Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force 
+		New-ItemProperty -Path $OEMpath -Name 'Logo' -PropertyType String -Value $config.Config.OEMInfo.Logo -Force | Out-Null
+		}
+		#Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force
+		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 #| Out-Null
 	}
+
+
 
 	# STEP 15A: Force Enterprise SKU
 	if ($config.Config.SkipEnterpriseGVLK -ine "true") {
