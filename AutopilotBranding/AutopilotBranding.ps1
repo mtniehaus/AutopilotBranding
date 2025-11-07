@@ -317,12 +317,36 @@ try
 		$proc.WaitForExit()
 		Log "OneDriveSetup exit code: $($proc.ExitCode)"
 
-		Log "Making sure the Run key exists"
-		& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /f /reg:64 2>&1 | Out-Null
-		& reg.exe query "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /reg:64 2>&1 | Out-Null
-		Log "Changing OneDriveSetup value to point to the machine wide EXE"
-		# Quotes are so problematic, we'll use the more risky approach and hope garbage collection cleans it up later
-		Set-ItemProperty -Path "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" -Name OneDriveSetup -Value """C:\Program Files\Microsoft OneDrive\Onedrive.exe"" /background" | Out-Null
+
+		Log "Making sure the Defaultuser Run key exists"
+		$RegRunPath = "HKLM:\TempUser\Software\Microsoft\Windows\CurrentVersion\Run"
+		if (!(Test-Path -Path $RegRunPath)) {
+			Log "Run Key not found!.. Will create it now."
+			& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /f /reg:64 2>&1 | Out-Null	
+			Log "Run Key created"	
+		}
+        else{ 
+            Log "Run Key Already Exists"
+        }
+
+		$RunValueName = "OneDriveSetup"
+		Log "Looking for per-user OneDriveSetup REG_SZ"
+		# Check for the existence of string OneDriveSetup which should have the value ( C:\Windows\System32\OneDriveSetup.exe /thfirstsetup )
+		# This is creating multiple Onedrives launching at sign. Remove as no longer needed once Machine-Wide installer is run.
+		if (Get-ItemProperty -Path $RegRunPath -Name $RunValueName -ErrorAction SilentlyContinue) {
+    		Log "Per-User '$RunValueName'  still exists. Cleaning up."
+			& reg.exe delete "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /v "OneDriveSetup" /f /reg:64 2>&1 | Out-Null
+			Log "Per-User '$RunValueName' removed."
+		}
+		else {
+    		 Log "'$RunValueName' per-user not found. This is Good."
+		}
+
+		#OneDriveSetup should set these keys but can take an additional reboot after copying binaries. This should jump start OneDrive at first User Login.
+		Log "Setting OneDrive to Autostart from Machine-Wide location"
+		$OnedrivePath = '"C:\Program Files\Microsoft OneDrive\OneDrive.exe" /background'
+		#& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Run" /v 'OneDrive' /t REG_SZ /d $OnedrivePath /f /reg:64 2>&1 #| Out-Null
+        New-Itemproperty -Path $RegRunPath -Name 'OneDrive' -Value $OnedrivePath -PropertyType String -Force | Out-Null
 	}
 
 	# STEP 8: Don't let Edge create a desktop shortcut (roams to OneDrive, creates mess)
