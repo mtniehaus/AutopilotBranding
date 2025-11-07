@@ -370,7 +370,7 @@ try
 	}
 
 	# STEP 8B: Clean up any OEM-added bookmarks from the default user profile
-	$bookmarks = "C:\Users\defaultuser0\AppData\Local\Microsoft\Edge\User Data\Default\Bookmarks"
+	$bookmarks = "C:\Users\default\AppData\Local\Microsoft\Edge\User Data\Default\Bookmarks"
 	if (Test-Path $bookmarks) {
 		Log "Removing Edge bookmarks folder from default profile"
 		Remove-Item $bookmarks -Force
@@ -378,10 +378,11 @@ try
 	$Bookmarksregpath = "HKLM:\SOFTWARE\Microsoft\MicrosoftEdge\Main\FavoriteBarItems"
 	if (test-path $Bookmarksregpath){
 	Remove-Item -path $Bookmarksregpath -Recurse -Force
-	Log "OEM Bookmarks Deleted"
+	Log "OEM Edge Bookmarks were detected and removed successfully"
 	}else{
-	Log "Key not found: $Bookmarksregpath"
+	Log "No OEM Edge Booksmarks were detected"
 	}
+
 
 
 	
