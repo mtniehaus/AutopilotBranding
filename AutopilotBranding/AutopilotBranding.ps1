@@ -375,6 +375,17 @@ try
 		Log "Removing Edge bookmarks folder from default profile"
 		Remove-Item $bookmarks -Force
 	}
+	$Bookmarksregpath = "HKLM:\SOFTWARE\Microsoft\MicrosoftEdge\Main\FavoriteBarItems"
+	if (test-path $Bookmarksregpath){
+	Remove-Item -path $Bookmarksregpath -Recurse -Force
+	Log "OEM Edge Bookmarks were detected and removed successfully"
+	}else{
+	Log "No OEM Edge Booksmarks were detected"
+	}
+
+
+
+	
 
 	# STEP 9: Add language packs
 	if (Test-Path "$($installFolder)LPs") {
