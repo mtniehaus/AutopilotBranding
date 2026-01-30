@@ -168,7 +168,9 @@ try
 			Log "Importing Taskbar layout: $($installFolder)TaskbarLayoutModification.xml"
 			MkDir -Path "C:\Windows\OEM\" -Force -ErrorAction SilentlyContinue | Out-Null
 			Copy-Item "$($installFolder)TaskbarLayoutModification.xml" "C:\Windows\OEM\TaskbarLayoutModification.xml" -Force
-			& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 2>&1 | Out-Null
+			Log "Set 'Start Layout' policy settings to apply the custom taskbar layout"
+			& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer" /v StartLayoutFile /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 2>&1 | Out-Null
+			& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer" /v LockedStartLayout /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 			Log "Unpin the Microsoft Store app from the taskbar"
 			& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 2>&1 | Out-Null
 		} else {
