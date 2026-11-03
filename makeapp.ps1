@@ -23,8 +23,8 @@ if (-not $provider) {
 }
 
 # Install and import the module to create the .intunewin file
-Install-Module SvRooij.ContentPrep.Cmdlet -MinimumVersion 0.4.0
-Import-Module SvRooij.ContentPrep.Cmdlet
+Install-Module SvRooij.ContentPrep.Cmdlet -MinimumVersion 0.4.0 -Scope CurrentUser -Force
+Import-Module SvRooij.ContentPrep.Cmdlet -ErrorAction Stop
 
 # Create the .intunewin file
 if ($OutputFolder -eq "") {
