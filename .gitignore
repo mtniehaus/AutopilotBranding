@@ -328,4 +328,5 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
-/AutopilotBranding/LPs/Microsoft-Windows-Client-Language-Pack_x64_es-es.cab
+/Assets/LPs/*.cab
+/Output/

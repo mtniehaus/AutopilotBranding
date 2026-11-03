@@ -1,0 +1,272 @@
+{
+  "Version": 1,
+  "Description": "Default Autopilot Branding configuration (equivalent to the v3 Config.xml defaults)",
+  "Tasks": {
+    "Set-ABStartLayout": {
+      "Enabled": true,
+      "Parameters": {
+        "LayoutXmlPath": "Assets/Layout.xml",
+        "Start2BinPath": "Assets/start2.bin",
+        "SettingsDatPath": "Assets/settings.dat"
+      }
+    },
+    "Set-ABTaskbarLayout": {
+      "Enabled": true,
+      "Parameters": {
+        "TaskbarLayoutPath": "Assets/TaskbarLayoutModification.xml",
+        "UnpinStore": true
+      }
+    },
+    "Set-ABTheme": {
+      "Enabled": true,
+      "Parameters": {
+        "ThemePath": "Assets/Autopilot.theme",
+        "WallpaperPath": "Assets/Autopilot.jpg",
+        "UpdateThemeWallpaper": true
+      }
+    },
+    "Set-ABLockScreen": {
+      "Enabled": true,
+      "Parameters": {
+        "ImagePath": "Assets/AutopilotLock.jpg"
+      }
+    },
+    "Disable-ABStartOnFirstLogon": {
+      "Enabled": true,
+      "Parameters": {}
+    },
+    "Disable-ABDesktopSpotlight": {
+      "Enabled": true,
+      "Parameters": {
+        "HideLearnAboutThisPicture": true,
+        "DisableSpotlightCollection": true
+      }
+    },
+    "Set-ABStartAlignment": {
+      "Enabled": false,
+      "Parameters": {
+        "Alignment": "Left"
+      }
+    },
+    "Hide-ABWidgets": {
+      "Enabled": true,
+      "Parameters": {}
+    },
+    "Disable-ABWidgets": {
+      "Enabled": false,
+      "Parameters": {
+        "DisableOnLockScreen": true
+      }
+    },
+    "Set-ABSearchBoxMode": {
+      "Enabled": true,
+      "Parameters": {
+        "Mode": "IconOnly"
+      }
+    },
+    "Set-ABTimeZone": {
+      "Enabled": true,
+      "Parameters": {
+        "TimeZone": ""
+      }
+    },
+    "Remove-ABProvisionedApps": {
+      "Enabled": true,
+      "Parameters": {
+        "AppNames": [
+          "Clipchamp.Clipchamp",
+          "Microsoft.BingNews",
+          "Microsoft.BingWeather",
+          "Microsoft.GamingApp",
+          "Microsoft.GetHelp",
+          "Microsoft.GetStarted",
+          "Microsoft.Messaging",
+          "Microsoft.Microsoft3DViewer",
+          "Microsoft.MicrosoftOfficeHub",
+          "Microsoft.MicrosoftSolitaireCollection",
+          "Microsoft.MixedReality.Portal",
+          "Microsoft.MSPaint",
+          "Microsoft.News",
+          "Microsoft.OneConnect",
+          "Microsoft.OutlookForWindows",
+          "Microsoft.People",
+          "Microsoft.PowerAutomateDesktop",
+          "Microsoft.Print3D",
+          "Microsoft.SkypeApp",
+          "microsoft.windowscommunicationsapps",
+          "Microsoft.WindowsFeedbackHub",
+          "Microsoft.WindowsMaps",
+          "Microsoft.XboxApp",
+          "Microsoft.YourPhone",
+          "Microsoft.ZuneMusic",
+          "Microsoft.ZuneVideo",
+          "Microsoft.Xbox.TCUI",
+          "Microsoft.XboxGameOverlay",
+          "Microsoft.XboxGamingOverlay",
+          "Microsoft.XboxIdentityProvider",
+          "Microsoft.XboxSpeechToTextOverlay",
+          "MicrosoftCorporationII.MicrosoftFamily",
+          "MicrosoftTeams",
+          "MSTeams",
+          "Microsoft.M365Companions",
+          "9NHT9RB2F4HD"
+        ]
+      }
+    },
+    "Disable-ABCopilotPWA": {
+      "Enabled": false,
+      "Parameters": {}
+    },
+    "Install-ABOneDrive": {
+      "Enabled": true,
+      "Parameters": {
+        "Url": "https://go.microsoft.com/fwlink/?linkid=844652",
+        "ArmUrl": "https://go.microsoft.com/fwlink/?linkid=2282608"
+      }
+    },
+    "Disable-ABEdgeDesktopShortcut": {
+      "Enabled": true,
+      "Parameters": {}
+    },
+    "Update-ABEdge": {
+      "Enabled": true,
+      "Parameters": {
+        "Url": "https://go.microsoft.com/fwlink/?LinkID=2093437",
+        "ArmUrl": ""
+      }
+    },
+    "Remove-ABEdgeBookmarks": {
+      "Enabled": true,
+      "Parameters": {}
+    },
+    "Add-ABLanguagePacks": {
+      "Enabled": false,
+      "Parameters": {
+        "LanguagePackFolder": "Assets/LPs"
+      }
+    },
+    "Set-ABLanguage": {
+      "Enabled": false,
+      "Parameters": {
+        "LanguageXmlPath": "Assets/Language.xml"
+      }
+    },
+    "Disable-ABOptionalFeatures": {
+      "Enabled": true,
+      "Parameters": {
+        "FeatureNames": [
+          "MicrosoftWindowsPowershellV2Root",
+          "WorkFolders-Client",
+          "Recall",
+          "MediaPlayback"
+        ]
+      }
+    },
+    "Remove-ABWindowsCapabilities": {
+      "Enabled": true,
+      "Parameters": {
+        "CapabilityNames": [
+          "App.StepsRecorder",
+          "Microsoft.Windows.PowerShell.ISE"
+        ]
+      }
+    },
+    "Add-ABWindowsCapabilities": {
+      "Enabled": true,
+      "Parameters": {
+        "CapabilityNames": [
+          "Microsoft.Windows.Sense.Client~~~~",
+          "WMIC"
+        ],
+        "BypassWsus": true
+      }
+    },
+    "Set-ABDefaultApps": {
+      "Enabled": true,
+      "Parameters": {
+        "AssociationsXmlPath": "Assets/Associations.xml"
+      }
+    },
+    "Set-ABRegisteredOwner": {
+      "Enabled": true,
+      "Parameters": {
+        "Owner": "Autopilot User",
+        "Organization": "Contoso"
+      }
+    },
+    "Set-ABOEMInfo": {
+      "Enabled": true,
+      "Parameters": {
+        "Manufacturer": "Contoso",
+        "Model": "PC",
+        "UseDetectedHardware": true,
+        "SupportPhone": "+1 800-555-1212",
+        "SupportHours": "8am-5pm PST",
+        "SupportURL": "http://www.contoso.com",
+        "LogoPath": "Assets/Contoso.bmp"
+      }
+    },
+    "Set-ABEnterpriseEdition": {
+      "Enabled": false,
+      "Parameters": {
+        "ProductKey": "NPPR9-FWDCX-D2C8J-H872K-2YT43"
+      }
+    },
+    "Enable-ABUEV": {
+      "Enabled": false,
+      "Parameters": {
+        "TemplateFolder": "Assets/UEV",
+        "SettingsStorageLocation": "%OneDriveCommercial%\\UEV"
+      }
+    },
+    "Disable-ABNetworkLocationFlyout": {
+      "Enabled": true,
+      "Parameters": {}
+    },
+    "Disable-ABAutoInstalledApps": {
+      "Enabled": true,
+      "Parameters": {
+        "DevHome": true,
+        "OutlookNew": true
+      }
+    },
+    "Install-ABWinGetPackages": {
+      "Enabled": true,
+      "Parameters": {
+        "PackageIds": [
+          "Google.Chrome",
+          "9WZDNCRD29V9"
+        ],
+        "VCRedistUrl": "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+      }
+    },
+    "Set-ABChromeConfig": {
+      "Enabled": true,
+      "Parameters": {
+        "InitialPreferencesPath": "Assets/initial_preferences",
+        "RemoveDesktopShortcut": true
+      }
+    },
+    "Disable-ABAPv2Pages": {
+      "Enabled": true,
+      "Parameters": {}
+    },
+    "Update-ABApps": {
+      "Enabled": true,
+      "Parameters": {
+        "UpdateInboxApps": true,
+        "TriggerStoreScan": true
+      }
+    },
+    "Disable-ABFirstLogonAnimation": {
+      "Enabled": true,
+      "Parameters": {}
+    },
+    "Remove-ABOffice": {
+      "Enabled": true,
+      "Parameters": {
+        "OdtUrl": "https://officecdn.microsoft.com/pr/wsus/setup.exe"
+      }
+    }
+  }
+}

@@ -2,9 +2,9 @@ name: Publish Autopilot Branding
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
 
 jobs:
 
@@ -18,6 +18,26 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Check PowerShell syntax
+      shell: pwsh
+      run: |
+        $problems = @()
+        Get-ChildItem -Recurse -Include *.ps1, *.psm1, *.psd1 | ForEach-Object {
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+          foreach ($e in $parseErrors) {
+            $problems += "$($_.FullName):$($e.Extent.StartLineNumber): $($e.Message)"
+          }
+        }
+        if ($problems) { $problems; exit 1 }
+
+    - name: Import module (Windows PowerShell 5.1)
+      shell: powershell
+      run: |
+        Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1 -Force -ErrorAction Stop
+        Get-Command -Module AutopilotBranding | Format-Table Name -AutoSize
+
     - name: Create Intune app
       shell: cmd
       run: |
@@ -29,4 +49,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: AutopilotBranding
-        path: AutopilotBranding.intunewin
+        path: |
+          AutopilotBranding.intunewin
+          Output
