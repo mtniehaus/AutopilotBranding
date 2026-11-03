@@ -516,33 +516,64 @@ try
 		& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v RegisteredOrganization /t REG_SZ /d "$($config.Config.RegisteredOrganization)" /f /reg:64 2>&1 | Out-Null
 	}
 
-	# STEP 14: Configure OEM branding info
+# STEP 14: Configure OEM branding info
 	
 	if ($config.Config.OEMInfo) {
 		Log "Configuring OEM branding info"
+		
 		$OEMpath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation'
+
+		$cs  = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+		$csp = $null
+
+    # Manufacturer (CIM → config fallback)
+    if ($cs -and -not [string]::IsNullOrWhiteSpace($cs.Manufacturer)) {
+        $OEMVender = $cs.Manufacturer
+    } else {
+        $OEMVender = $config.Config.OEMInfo.Manufacturer
+    }
+	Log "Manufacturer found is: $($OEMVender)"
+	
+    # Model for Lenovo is found under the 'Version' property. 'Name' returns a SKU and is not friendly name.
+    if ($OEMVender -match 'Lenovo' -and $cs) {
+        $csp = Get-CimInstance Win32_ComputerSystemProduct -ErrorAction SilentlyContinue
+
+        if ($csp -and -not [string]::IsNullOrWhiteSpace($csp.Version)) {
+            $OEMModel = $csp.Version
+        }
+    }
+	
+    # Get model for Non-Lenovo PCs or Lenovo fallback
+    if (-not $OEMModel) {
+        if ($cs -and -not [string]::IsNullOrWhiteSpace($cs.Model)) {
+            $OEMModel = $cs.Model
+        } else {
+            $OEMModel = $config.Config.OEMInfo.Model
+        }
+    }
+		Log "Model found is: $($OEMModel)"
 		
-		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Manufacturer /t REG_SZ /d "$($config.Config.OEMInfo.Manufacturer)" /f /reg:64 2>&1 #| Out-Null
-		New-ItemProperty -Path $OEMpath -Name 'Manufacturer' -PropertyType String -Value $config.Config.OEMInfo.Manufacturer -Force | Out-Null
-		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Model /t REG_SZ /d "$($config.Config.OEMInfo.Model)" /f /reg:64 2>&1 #| Out-Null
-		New-ItemProperty -Path $OEMpath -Name 'Model' -PropertyType String -Value $config.Config.OEMInfo.Model -Force | Out-Null
-		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportPhone /t REG_SZ /d "$($config.Config.OEMInfo.SupportPhone)" /f /reg:64 2>&1 #| Out-Null
+		New-ItemProperty -Path $OEMpath -Name 'Manufacturer' -PropertyType String -Value $OEMVender -Force | Out-Null
+		New-ItemProperty -Path $OEMpath -Name 'Model'        -PropertyType String -Value $OEMModel  -Force | Out-Null	
 		New-ItemProperty -Path $OEMpath -Name 'SupportPhone' -PropertyType String -Value $config.Config.OEMInfo.SupportPhone -Force | Out-Null
-		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportHours /t REG_SZ /d "$($config.Config.OEMInfo.SupportHours)" /f /reg:64 2>&1 #| Out-Null
 		New-ItemProperty -Path $OEMpath -Name 'SupportHours' -PropertyType String -Value $config.Config.OEMInfo.SupportHours -Force | Out-Null
-		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v SupportURL /t REG_SZ /d "$($config.Config.OEMInfo.SupportURL)" /f /reg:64 2>&1 #| Out-Null
 		New-ItemProperty -Path $OEMpath -Name 'SupportURL' -PropertyType String -Value $config.Config.OEMInfo.SupportURL -Force | Out-Null
+				
+	if ($ci.OsBuildNumber -le 22000) {
 		
-	if (Test-Path "$installFolder\$($config.Config.OEMInfo.Logo)") { 
-		Log "BMP Logo Found copying.."
-    	Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force 
-		New-ItemProperty -Path $OEMpath -Name 'Logo' -PropertyType String -Value $config.Config.OEMInfo.Logo -Force | Out-Null
+		if (Test-Path "$installFolder\$($config.Config.OEMInfo.Logo)") { 
+			Log "BMP Logo Found copying.."
+			Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force 
+			New-ItemProperty -Path $OEMpath -Name 'Logo' -PropertyType String -Value $config.Config.OEMInfo.Logo -Force | Out-Null
 		}
-		#Copy-Item "$installFolder\$($config.Config.OEMInfo.Logo)" "C:\Windows\$($config.Config.OEMInfo.Logo)" -Force
-		#& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" /v Logo /t REG_SZ /d "C:\Windows\$($config.Config.OEMInfo.Logo)" /f /reg:64 2>&1 #| Out-Null
 	}
-
-
+	else {
+		Log "Windows 11 doesnt support Logo Bmp, skipping..."
+		}
+	Log "OEM Branding Info set"
+	
+	}
+	
 
 	# STEP 15A: Force Enterprise SKU
 	if ($config.Config.SkipEnterpriseGVLK -ine "true") {
@@ -592,8 +623,14 @@ try
 
 		#Log 'Installing WinGet.Client module'
 		Install-Module -Name Microsoft.WinGet.Client -Force -Scope AllUsers -Repository PSGallery | Out-Null
-		Log 'Installing Lastest Winget package and dependencies'
-		Repair-WinGetPackageManager -Force -Latest | Out-Null  #-Allusers not supported in System Context so was removed.
+
+	Log "Installing Latest Winget package and dependencies" -Level Info
+	try {
+			Repair-WinGetPackageManager -Force -Latest | Out-Null
+		}
+	catch {
+		Log "Winget Repair Failed in system context again. Check Winget Github Issues for more info"
+	}
 		
 		#Permalink for latest supported x64 version of vc_redist.x64
 		$VCppRedistributable_Url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
