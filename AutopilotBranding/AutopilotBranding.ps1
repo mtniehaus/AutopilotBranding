@@ -269,6 +269,14 @@ try
 		Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Dsh"  -Name "AllowNewsAndInterests" -Value 0
 
 	}
+	# STEP 4C: Set Search Bar to Icon Only via RunOnce
+	if ($config.Config.SkipSetSearchIcon -ine "true") {
+
+ 	Log "Setting Searchbar Icon via RunOnce"
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\RunOnce" /f | Out-Null # Ensure path exists
+	$RunOnceCommand = 'reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Search /t REG_DWORD /v SearchboxTaskbarMode /d 1 /f'
+	& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\RunOnce" /v 'SetSearchIconOnly' /t REG_SZ /d $RunOnceCommand /f | Out-Null
+	}
 
 	# STEP 5: Set time zone (if specified)
 	if ($config.Config.TimeZone) {
@@ -691,6 +699,48 @@ try
 		New-ItemProperty -Path $registryPath -Name "EnableFirstLogonAnimation" -Value 0 -PropertyType DWord -Force | Out-Null
 		New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitchTimeout" -Value 0 -PropertyType DWord -Force | Out-Null
 	}
+	# STEP 22: Remove All Office Products
+	## Remove All Office Products
+	if ($config.Config.SkipRemoveOffice -ine "true") {
+	Log  "Remove All Office Products Selected"
+	
+## The XML below will Remove All Microsoft C2Rs ( Click-to-Runs), regardless of Product ID and Languages. To remove All Comment out or remove the XML block between Start and End above. Then Uncomment the XML below.
+$xml = @"
+<Configuration>
+  <Display Level="None" AcceptEULA="True" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="True" />
+  <Remove All="TRUE">
+  </Remove>
+  <RemoveMSI />
+</Configuration>
+"@
+## Remove All Office Products XML End ##
+
+	# Define temp folder and file paths
+	$tempFolder     = $env:TEMP
+	$xmlPath        = Join-Path $tempFolder 'o365.xml'
+	$odtPath        = Join-Path $tempFolder 'setup.exe'
+
+	# Write XML to temp folder
+	$xml | Out-File -FilePath $xmlPath -Encoding UTF8
+	Log "Downloading lastet ODT"
+	# Download the Latest ODT into temp folder. URI obtained from Stealthpuppy's Evergreen Project
+	$odtUrl = 'https://officecdn.microsoft.com/pr/wsus/setup.exe'
+	Invoke-WebRequest -Uri $odtUrl `
+                  -OutFile $odtPath `
+                  -UseBasicParsing
+
+	Log "Running ODT"
+	# Run the ODT from temp, pointing at the XML also in temp
+	$proc = Start-Process -FilePath $odtPath `
+              -ArgumentList "/configure `"$xmlPath`"" `
+              -WindowStyle Hidden `
+              -Wait `
+              -PassThru
+	$proc | Wait-Process
+	Log "ODT exit code: $($proc.ExitCode)"	
+	} 
+	
 } catch {
 	Log "Unhandled exception: $_"
 } finally {
