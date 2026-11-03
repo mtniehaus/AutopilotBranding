@@ -20,6 +20,16 @@ These customizations are currently supported:
 - Configure language settings.  Adding a language pack isn't enough - you have to tell Windows that you want it to be configured for all users.  This is done through an XML file fed to INTL.CPL; customize the file as needed.  (Note this is commented out by default in the Config.xml file.)
 - Configure default apps.  Import a list of file associations (as created by manually configuring the associations that you want and then using "DISM /Online /Export-DefaultAppAssociations:C:\Associations.xml" to export those settings) that should replace the default app associations.  (Note that even though an example is included from a customized Windows 10 1903 image, making IE 11 the default browser, you should replace this file with your own exported version.  Also, do not edit the file that you exported, e.g. to remove entries that you didn't change.)
 
+- Rename the computer (optional).  Set ComputerName in Config.xml; %SERIAL% is replaced with the BIOS serial number and the result is truncated to 15 characters.  Don't use this with hybrid Entra join.
+- Configure language settings with PowerShell (optional, Windows 11).  As an alternative to Language.xml, set LanguageSettings in Config.xml to install a language from Windows Update and set the display language, locale, culture and home location for new users.
+
+## Troubleshooting
+
+- Wallpaper, Start menu and taskbar customizations don't apply (seen on 25H2): check whether the Intune enrollment policy "Windows Backup and Restore > Show restore page" is enabled.  When it is, the restore experience can override the default user profile settings.
+- To make apps (not just Windows) use dark mode, add AppMode=Dark below SystemMode=Dark in the [VisualStyles] section of Autopilot.theme.
+- ARM64 devices: set EdgeBusinessARM to the ARM64 Edge for Business MSI URL, otherwise the Edge update step is skipped on ARM64 (the x64 MSI breaks Edge and WebView2 there).
+- The script log is written to %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log.  A failure in one step is logged and the remaining steps still run.
+
 ## Requirements and Dependencies
 
 This uses the Microsoft Win32 Content Prep Tool (a.k.a. IntuneWinAppUtil.exe, available from https://github.com/Microsoft/Microsoft-Win32-Content-Prep-Tool) to package the PowerShell script and related files into a .intunewin file that can be uploaded to Intune as a Win32 app. 

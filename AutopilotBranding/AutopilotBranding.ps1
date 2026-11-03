@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.3.1
+.VERSION 3.3.2
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR Michael Niehaus
 .COMPANYNAME
@@ -34,6 +34,9 @@ v3.2.0 - 2025-07-15 - Various fixes (start menu layout, apps, etc.)
 v3.2.1 - 2025-07-15 - Updated makeapps.cmd to use PowerShell 7
 v3.3.0 - 2025-09-20 - Added bookmark cleanup for Edge, Chrome. Fixed start menu config. Added Try/catch/finally. Added OOBE check.
 v3.3.1 - 2025-10-10 - Minor bug fixes
+v3.3.2 - 2026-11-03 - Fixed WinGet step aborting the script; failures in one step no longer skip the rest; default user hive is always unloaded;
+                      ARM64 fixes for Edge and VC++ runtime; optional computer rename; optional PowerShell-based language config;
+                      in-box app removal also removes installed packages; removed obsolete IE http/https associations
 #>
 
 [CmdletBinding()]
@@ -72,7 +75,25 @@ function Check-NuGetProvider {
 	} else {
 		Log "NuGet provider meets min requirements (v:$($provider.Version))."
 	}
-    
+
+}
+
+
+function Dismount-DefaultUserHive {
+	# Leaving the default user hive loaded corrupts new profiles ("The User Profile Service failed the sign-in"), so retry a few times
+	for ($i = 1; $i -le 5; $i++) {
+		[GC]::Collect()
+		[GC]::WaitForPendingFinalizers()
+		& reg.exe unload HKLM\TempUser 2>&1 | Out-Null
+		if ($LASTEXITCODE -eq 0) {
+			Log "Default user registry unloaded"
+			$script:hiveLoaded = $false
+			return
+		}
+		Log "Unable to unload default user registry (attempt $i), retrying..."
+		Start-Sleep -Seconds 2
+	}
+	Log "ERROR: Unable to unload default user registry"
 }
 
 # Get the Current start time in UTC format, so that Time Zone Changes don't affect total runtime calculation
@@ -89,6 +110,9 @@ if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64") {
 		Exit $lastexitcode
 	}
 }
+
+# Check the OS architecture (not the process architecture, which could be x86 or x64 under emulation on ARM64)
+$isArm64 = ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") -or ($env:PROCESSOR_ARCHITEW6432 -eq "ARM64")
 
 # Create output folder
 if (-not (Test-Path "$($env:ProgramData)\Microsoft\AutopilotBranding")) {
@@ -131,7 +155,8 @@ if ($IsOOBEComplete) {
 	}
 }
 
-try 
+$hiveLoaded = $false
+try
 {
 	# PREP: Load the Config.xml
 	$installFolder = "$PSScriptRoot\"
@@ -140,8 +165,35 @@ try
 	[Xml]$config = Get-Content "$($installFolder)Config.xml"
 
 	# PREP: Load the default user registry
-	Log "Loading Defualt User Registry Hive NTUSER.DAT"
+	if (Test-Path "HKLM:\TempUser") {
+		# Left over from a previous run that didn't finish, unload it first so the load below succeeds
+		$hiveLoaded = $true
+		Dismount-DefaultUserHive
+	}
+	Log "Loading Default User Registry Hive NTUSER.DAT"
 	reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Null
+	$hiveLoaded = ($LASTEXITCODE -eq 0)
+
+	# STEP 0A: Rename the computer (if specified). %SERIAL% is replaced with the BIOS serial number.
+	# Don't use this with hybrid Entra join; set the name in the Autopilot profile or domain join profile instead.
+	if ($config.Config.ComputerName) {
+		try {
+			$serial = (Get-CimInstance Win32_BIOS).SerialNumber -replace '[^A-Za-z0-9-]', ''
+			$newName = $config.Config.ComputerName -ireplace '%SERIAL%', $serial
+			$newName = ($newName -replace '[^A-Za-z0-9-]', '')
+			$newName = $newName.Substring(0, [Math]::Min(15, $newName.Length)).Trim('-')
+			if ([string]::IsNullOrWhiteSpace($newName)) {
+				Log "Computer name is empty after substitution, skipping rename"
+			} elseif ($env:COMPUTERNAME -ieq $newName) {
+				Log "Computer is already named $newName"
+			} else {
+				Log "Renaming computer to $newName (takes effect after reboot)"
+				Rename-Computer -NewName $newName -Force -ErrorAction Stop
+			}
+		} catch {
+			Log "Unable to rename computer: $_"
+		}
+	}
 
 	# STEP 1: Apply a custom start menu and taskbar layout
 	$ci = Get-ComputerInfo
@@ -294,14 +346,27 @@ try
 	# STEP 6: Remove specified provisioned apps if they exist
 	Log "Removing specified in-box provisioned apps"
 	$apps = Get-AppxProvisionedPackage -online
+	# Also look at installed packages, as OEMs sometimes install apps for all users without provisioning them
+	$installedApps = Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue
 	$config.Config.RemoveApps.App | ForEach-Object {
 		$current = $_
 		$apps | Where-Object { $_.DisplayName -eq $current } | ForEach-Object {
 			try {
 				Log "Removing provisioned app: $current"
-				$_ | Remove-AppxProvisionedPackage -Online -AllUsers -ErrorAction SilentlyContinue | Out-Null
+				$_ | Remove-AppxProvisionedPackage -Online -AllUsers -ErrorAction Stop | Out-Null
 			}
-			catch { }
+			catch {
+				Log "  Unable to remove provisioned app $($current): $_"
+			}
+		}
+		$installedApps | Where-Object { $_.Name -eq $current -and -not $_.NonRemovable } | ForEach-Object {
+			try {
+				Log "Removing installed app: $($_.PackageFullName)"
+				$_ | Remove-AppxPackage -AllUsers -ErrorAction Stop | Out-Null
+			}
+			catch {
+				Log "  Unable to remove installed app $($current): $_"
+			}
 		}
 	}
 
@@ -312,21 +377,30 @@ try
 	}
 
 	# STEP 7: Install OneDrive per machine
+	$oneDriveInstalled = $false
 	if ($config.Config.OneDriveSetup) {
-	
-		$dest = "$($env:TEMP)\OneDriveSetup.exe"
-		$client = new-object System.Net.WebClient
-		if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
-			$url = $config.Config.OneDriveARMSetup
-		} else {
-			$url = $config.Config.OneDriveSetup
+		try {
+			$dest = "$($env:TEMP)\OneDriveSetup.exe"
+			$client = new-object System.Net.WebClient
+			if ($isArm64) {
+				$url = $config.Config.OneDriveARMSetup
+			} else {
+				$url = $config.Config.OneDriveSetup
+			}
+			Log "Downloading OneDriveSetup: $url"
+			$client.DownloadFile($url, $dest)
+			Log "Installing: $dest"
+			$proc = Start-Process $dest -ArgumentList "/allusers /silent" -WindowStyle Hidden -PassThru
+			$proc.WaitForExit()
+			Log "OneDriveSetup exit code: $($proc.ExitCode)"
+			$oneDriveInstalled = Test-Path "C:\Program Files\Microsoft OneDrive\OneDrive.exe"
+		} catch {
+			Log "Unable to install OneDrive per-machine: $_"
 		}
-		Log "Downloading OneDriveSetup: $url"
-		$client.DownloadFile($url, $dest)
-		Log "Installing: $dest"
-		$proc = Start-Process $dest -ArgumentList "/allusers /silent" -WindowStyle Hidden -PassThru
-		$proc.WaitForExit()
-		Log "OneDriveSetup exit code: $($proc.ExitCode)"
+	}
+
+	# Only repoint the default user Run key when the per-machine OneDrive actually exists, otherwise OneDrive would never start
+	if ($oneDriveInstalled) {
 
 
 		Log "Making sure the Defaultuser Run key exists"
@@ -373,35 +447,46 @@ try
 
 	# STEP 8A: Attempt to Donwload and install Latest Edge for Business MSI from Evergreen URL
 	if ($config.Config.SkipEdgeUpdate -ine "true") {
-		
-		$client = new-object System.Net.WebClient
-		$dest = "$($env:TEMP)\MicrosoftEdgeEnterpriseX64.msi"
-		$url = $config.Config.EdgeBusinessMSI
-		Log "Downloading Latest Edge for Business: $url"
-		$client.DownloadFile($url, $dest)
-		
-		# Edge Version is buried in Comments of MSI. Parse the first 13 charaters to pull out Version number.
-		$shell = New-Object -ComObject Shell.Application
-		$folder = $shell.NameSpace((Split-Path $dest))
-		$file = $folder.ParseName((Split-Path $dest -Leaf))
-		$comment = $folder.GetDetailsOf($file, 24) # 24 is the index for comments
-		$versionOnly = $comment.Substring(0, [Math]::Min(13, $comment.Length))
-
-		Log "Installing Edge for Business V:$versionOnly"
-		$arguments = "/i `"$($dest)`" /qn /L*v $($env:TEMP)\EdgeBusiness.log"
-		#$arguments = "/i `"$($dest)`""
-		$proc = Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -PassThru -WindowStyle Hidden
-		$proc.WaitForExit()
-		if ($proc.ExitCode -ne 0) {
-			#Write-Error "Installation failed (exit code $($proc.ExitCode))"
-			Log "MSI Error, trying to Run MicrosoftEdgeUpdate.exe instead"
-			$proc = Start-Process -FilePath "C:\Program Files (x86)\Microsoft\EdgeUpdate\MicrosoftEdgeUpdate.exe" -argumentlist "/silent /install appguid={56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}&appname=Microsoft%20Edge&needsadmin=True" -PassThru -WindowStyle Hidden
-			$proc.WaitForExit()
-			Log "Edge Updater Triggered" 
+		# Installing the x64 MSI on ARM64 replaces the native Edge and breaks WebView2, so only use the ARM64 MSI there
+		if ($isArm64) {
+			$url = $config.Config.EdgeBusinessARM
+			$dest = "$($env:TEMP)\MicrosoftEdgeEnterpriseARM64.msi"
 		} else {
-			Log "Edge for Business Updated"
+			$url = $config.Config.EdgeBusinessMSI
+			$dest = "$($env:TEMP)\MicrosoftEdgeEnterpriseX64.msi"
 		}
 
+		if (-not $url) {
+			Log "No Edge for Business MSI specified for this architecture (EdgeBusinessARM for ARM64), skipping Edge update"
+		} else {
+			try {
+				$client = new-object System.Net.WebClient
+				Log "Downloading Latest Edge for Business: $url"
+				$client.DownloadFile($url, $dest)
+
+				# Edge Version is buried in Comments of MSI. Parse the first 13 charaters to pull out Version number.
+				$shell = New-Object -ComObject Shell.Application
+				$folder = $shell.NameSpace((Split-Path $dest))
+				$file = $folder.ParseName((Split-Path $dest -Leaf))
+				$comment = $folder.GetDetailsOf($file, 24) # 24 is the index for comments
+				$versionOnly = $comment.Substring(0, [Math]::Min(13, $comment.Length))
+
+				Log "Installing Edge for Business V:$versionOnly"
+				$arguments = "/i `"$($dest)`" /qn /L*v $($env:TEMP)\EdgeBusiness.log"
+				$proc = Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -PassThru -WindowStyle Hidden
+				$proc.WaitForExit()
+				if ($proc.ExitCode -ne 0) {
+					Log "MSI Error (exit code $($proc.ExitCode)), trying to Run MicrosoftEdgeUpdate.exe instead"
+					$proc = Start-Process -FilePath "C:\Program Files (x86)\Microsoft\EdgeUpdate\MicrosoftEdgeUpdate.exe" -argumentlist "/silent /install appguid={56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}&appname=Microsoft%20Edge&needsadmin=True" -PassThru -WindowStyle Hidden
+					$proc.WaitForExit()
+					Log "Edge Updater Triggered"
+				} else {
+					Log "Edge for Business Updated"
+				}
+			} catch {
+				Log "Unable to update Edge for Business: $_"
+			}
+		}
 	}
 
 	# STEP 8B: Clean up any OEM-added bookmarks from the default user profile
@@ -436,6 +521,38 @@ try
 		& $env:SystemRoot\System32\control.exe "intl.cpl,,/f:`"$($installFolder)$($config.Config.Language)`""
 	}
 
+	# STEP 10A: Install and configure a language using the LanguagePackManagement cmdlets (Windows 11), as an alternative to intl.cpl
+	if ($config.Config.LanguageSettings.Language) {
+		$ls = $config.Config.LanguageSettings
+		try {
+			Log "Installing language: $($ls.Language) (downloaded from Windows Update, this can take a while)"
+			Install-Language -Language $ls.Language -ErrorAction Stop | Out-Null
+			Set-SystemPreferredUILanguage -Language $ls.Language -ErrorAction Stop
+		} catch {
+			# This sometimes fails the first time a language is installed; the remaining settings still apply
+			Log "  Unable to install or set display language $($ls.Language): $_"
+		}
+		try {
+			$locale = if ($ls.Locale) { $ls.Locale } else { $ls.Language }
+			Log "Setting system locale, culture, and user language list: $locale"
+			Set-WinSystemLocale -SystemLocale $locale -ErrorAction Stop
+			Set-Culture -CultureInfo $locale -ErrorAction Stop
+			Set-WinUserLanguageList -LanguageList $locale -Force -ErrorAction Stop
+			if ($ls.GeoId) {
+				Log "Setting home location: $($ls.GeoId)"
+				Set-WinHomeLocation -GeoId ([int]$ls.GeoId) -ErrorAction Stop
+			}
+			if (Get-Command Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyContinue) {
+				Log "Copying international settings to the welcome screen and new users"
+				Copy-UserInternationalSettingsToSystem -WelcomeScreen $true -NewUser $true -ErrorAction Stop
+			} else {
+				Log "  Copy-UserInternationalSettingsToSystem is not available on this OS version, settings will not be copied to new users"
+			}
+		} catch {
+			Log "  Unable to configure regional settings: $_"
+		}
+	}
+
 	# STEP 11: Add features on demand, Disable Optional Features, Remove Windows Capabilities
 	$currentWU = (Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction Ignore).UseWuServer
 	if ($currentWU -eq 1) {
@@ -447,14 +564,16 @@ try
 	# Step 11A: Disable Optional features
 	if ($config.Config.DisableOptionalFeatures.Feature.Count -gt 0) {
 		try {
-			$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object { $_.State -eq "Enabled" }
+			$EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online -ErrorAction Stop | Where-Object { $_.State -eq "Enabled" }
 			foreach ($EnabledFeature in $EnabledOptionalFeatures) {
 				if ($config.Config.DisableOptionalFeatures.Feature -contains $EnabledFeature.FeatureName) {
 					Log "Disabling Optional Feature:  $($EnabledFeature.FeatureName)"
 					try {
-						Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart | Out-Null
+						Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart -ErrorAction Stop | Out-Null
 					}
-					catch {}
+					catch {
+						Log "  Unable to disable optional feature: $_"
+					}
 				}
 			}
 			}
@@ -466,12 +585,13 @@ try
 	# Step 11B: Remove Windows Capabilities
 	if ($config.Config.RemoveCapability.Capability.Count -gt 0) {
 		try {
-			$InstalledCapabilities = Get-WindowsCapability -Online | Where-Object { $_.State -eq "Installed" }
+			# This can fail (e.g. 0x800f0800 on some OEM images); log it and keep going
+			$InstalledCapabilities = Get-WindowsCapability -Online -ErrorAction Stop | Where-Object { $_.State -eq "Installed" }
 			foreach ($InstalledCapability in $InstalledCapabilities) {
 				if ($config.Config.RemoveCapability.Capability -contains $InstalledCapability.Name.Split("~")[0]) {
 					Log "Removing Windows Capability:  $($InstalledCapability.Name)"
 					try {
-						Remove-WindowsCapability -Online -Name $InstalledCapability.Name  | Out-Null
+						Remove-WindowsCapability -Online -Name $InstalledCapability.Name -ErrorAction Stop | Out-Null
 					}
 					catch {
 						Log "  Unable to remove Windows capability: $_"
@@ -488,7 +608,7 @@ try
 		$config.Config.AddFeatures.Feature | ForEach-Object {
 			Log "Adding Windows feature: $_"
 			try {
-				$result = Add-WindowsCapability -Online -Name $_
+				$result = Add-WindowsCapability -Online -Name $_ -ErrorAction Stop
 				if ($result.RestartNeeded) {
 					Log "  Feature $_ was installed but requires a restart"
 				}
@@ -620,48 +740,60 @@ try
 
 	# STEP 18: WinGet installs
 	if ($config.Config.SkipWinGet -ne 'true') {
-		# Ensure NuGet provider before installing modules
-		Check-NuGetProvider 
+		try {
+			# Ensure NuGet provider before installing modules
+			Check-NuGetProvider
 
-		#Log 'Installing WinGet.Client module'
-		Install-Module -Name Microsoft.WinGet.Client -Force -Scope AllUsers -Repository PSGallery | Out-Null
+			Log 'Installing WinGet.Client module'
+			Install-Module -Name Microsoft.WinGet.Client -Force -Scope AllUsers -Repository PSGallery -ErrorAction Stop | Out-Null
+		} catch {
+			Log "Unable to install the WinGet.Client module: $_"
+		}
 
-	Log "Installing Latest Winget package and dependencies" -Level Info
-	try {
-			Repair-WinGetPackageManager -Force -Latest | Out-Null
+		# Repair-WinGetPackageManager updates WinGet, but it periodically breaks (unsupported in Windows PowerShell, CDN timeouts, etc.).
+		# WinGet is in-box on current Windows 11 builds, so a failure here isn't fatal.
+		Log "Installing Latest Winget package and dependencies"
+		try {
+			Repair-WinGetPackageManager -Force -Latest -ErrorAction Stop | Out-Null
+		} catch {
+			Log "  Winget repair failed, will use the existing WinGet if present: $_"
 		}
-	catch {
-		Log "Winget Repair Failed in system context again. Check Winget Github Issues for more info"
-	}
-		
-		#Permalink for latest supported x64 version of vc_redist.x64
-		$VCppRedistributable_Url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-		#set temporary install file path
-		$VCppRedistributable_Path = Join-Path $env:TEMP 'vc_redist.x64.exe'
-		
-		Invoke-WebRequest -uri $VCppRedistributable_Url -outfile $VCppRedistributable_Path -UseBasicParsing
-		Start-Process -FilePath $VCppRedistributable_Path -ArgumentList "/install", "/quiet", "/norestart" -Wait
-		
-		#$wingetExe = (Get-ChildItem -Path 'C:\Program Files\WindowsApps' -Recurse -Filter 'winget.exe' -ErrorAction SilentlyContinue).FullName
-		#Look for Winget.exe in the C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_* Folder
-		$WinGetResolve = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*__8wekyb3d8bbwe\winget.exe"
-		$wingetExe = $WinGetResolve[-1].Path
-		$wingetVer = & "$wingetExe" --version
-		Log "Winget version is: $wingetVer"
-		
-		#Cleanup VCredistrib setup file
-		Remove-Item $VCppRedistributable_Path -Force
-		
-		foreach ($id in $config.Config.WinGetInstall.Id) {
-			Log "WinGet installing: $id"
-			try {
-				& "$wingetExe" install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
-			}
-			catch {
-				Log "WinGet installing error: $_"
+
+		try {
+			# Use the VC++ runtime that matches the OS architecture
+			$vcArch = if ($isArm64) { 'arm64' } else { 'x64' }
+			$VCppRedistributable_Url = "https://aka.ms/vs/17/release/vc_redist.$vcArch.exe"
+			$VCppRedistributable_Path = Join-Path $env:TEMP "vc_redist.$vcArch.exe"
+			Log "Installing VC++ runtime: $VCppRedistributable_Url"
+			Invoke-WebRequest -uri $VCppRedistributable_Url -outfile $VCppRedistributable_Path -UseBasicParsing -ErrorAction Stop
+			Start-Process -FilePath $VCppRedistributable_Path -ArgumentList "/install", "/quiet", "/norestart" -Wait
+			Remove-Item $VCppRedistributable_Path -Force -ErrorAction SilentlyContinue
+		} catch {
+			Log "  Unable to install VC++ runtime: $_"
+		}
+
+		#Look for Winget.exe in the C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_* Folder (newest version last)
+		$wingetExe = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*__8wekyb3d8bbwe\winget.exe" -ErrorAction SilentlyContinue |
+			Sort-Object { [version](($_.Path -split '_')[1]) } |
+			Select-Object -Last 1 -ExpandProperty Path
+		if (-not $wingetExe) {
+			Log "WinGet not found, skipping WinGet installs"
+		} else {
+			$wingetVer = & "$wingetExe" --version
+			Log "Winget version is: $wingetVer"
+
+			foreach ($id in $config.Config.WinGetInstall.Id) {
+				Log "WinGet installing: $id"
+				try {
+					& "$wingetExe" install $id --silent --scope machine --accept-package-agreements --accept-source-agreements
+					Log "  WinGet exit code: $LASTEXITCODE"
+				}
+				catch {
+					Log "WinGet installing error: $_"
+				}
 			}
 		}
-		
+
 	} else {
 		Log 'Skipping WinGet installs'
 	}
@@ -694,11 +826,12 @@ try
 		Log 'Skipping APv2 tweaks'
 	}
 
-	# CLEANUP: Unload default user registry
+	# CLEANUP: Unload default user registry (the remaining steps don't need it)
 	Log "Unloading Default user Registry"
-	[GC]::Collect()
-	reg.exe unload HKLM\TempUser | Out-Null
-	
+	if ($hiveLoaded) {
+		Dismount-DefaultUserHive
+	}
+
 	# STEP 20: Updates & Inbox-App script
 	if ($config.Config.SkipUpdates -ne 'true') {
 		try {
@@ -760,30 +893,39 @@ $xml = @"
 	$xmlPath        = Join-Path $tempFolder 'o365.xml'
 	$odtPath        = Join-Path $tempFolder 'setup.exe'
 
-	# Write XML to temp folder
-	$xml | Out-File -FilePath $xmlPath -Encoding UTF8
-	Log "Downloading lastet ODT"
-	# Download the Latest ODT into temp folder. URI obtained from Stealthpuppy's Evergreen Project
-	$odtUrl = 'https://officecdn.microsoft.com/pr/wsus/setup.exe'
-	Invoke-WebRequest -Uri $odtUrl `
-                  -OutFile $odtPath `
-                  -UseBasicParsing
+	try {
+		# Write XML to temp folder
+		$xml | Out-File -FilePath $xmlPath -Encoding UTF8
+		Log "Downloading latest ODT"
+		# Download the Latest ODT into temp folder. URI obtained from Stealthpuppy's Evergreen Project
+		$odtUrl = 'https://officecdn.microsoft.com/pr/wsus/setup.exe'
+		Invoke-WebRequest -Uri $odtUrl `
+	                  -OutFile $odtPath `
+	                  -UseBasicParsing `
+	                  -ErrorAction Stop
 
-	Log "Running ODT"
-	# Run the ODT from temp, pointing at the XML also in temp
-	$proc = Start-Process -FilePath $odtPath `
-              -ArgumentList "/configure `"$xmlPath`"" `
-              -WindowStyle Hidden `
-              -Wait `
-              -PassThru
-	$proc | Wait-Process
-	Log "ODT exit code: $($proc.ExitCode)"	
-	} 
-	
+		Log "Running ODT"
+		# Run the ODT from temp, pointing at the XML also in temp
+		$proc = Start-Process -FilePath $odtPath `
+	              -ArgumentList "/configure `"$xmlPath`"" `
+	              -WindowStyle Hidden `
+	              -Wait `
+	              -PassThru
+		Log "ODT exit code: $($proc.ExitCode)"
+	} catch {
+		Log "Unable to remove Office products: $_"
+	}
+	}
+
 } catch {
 	Log "Unhandled exception: $_"
 } finally {
-Log "All Steps Completed"
+	# Never leave the default user hive loaded, even if a step failed
+	if ($hiveLoaded) {
+		Log "Unloading Default user Registry"
+		Dismount-DefaultUserHive
+	}
+	Log "All Steps Completed"
 }
 
 $stopUtc = [datetime]::UtcNow
