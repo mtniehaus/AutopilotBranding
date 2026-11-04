@@ -899,7 +899,16 @@ function ConvertFrom-ABLegacyConfig {
 		return ''
 	}
 
+	$languageSettings = $c.SelectSingleNode('LanguageSettings')
+	function Get-LanguageSetting([string]$name) {
+		if ($languageSettings -and $languageSettings.SelectSingleNode($name)) { return $languageSettings.SelectSingleNode($name).InnerText.Trim() }
+		return ''
+	}
+	$geoId = 0
+	[void][int]::TryParse((Get-LanguageSetting 'GeoId'), [ref]$geoId)
+
 	$tasks = [ordered]@{
+		'Rename-ABComputer'               = @{ Enabled = [bool](Get-Value 'ComputerName'); Parameters = @{ NewName = (Get-Value 'ComputerName') } }
 		'Set-ABStartLayout'               = @{ Enabled = (Test-NotSkipped 'SkipStartLayout'); Parameters = @{ LayoutXmlPath = (Get-File 'Layout.xml'); Start2BinPath = (Get-File 'start2.bin'); SettingsDatPath = (Get-File 'settings.dat') } }
 		'Set-ABTaskbarLayout'             = @{ Enabled = (Test-NotSkipped 'SkipTaskbarLayout'); Parameters = @{ TaskbarLayoutPath = (Get-File 'TaskbarLayoutModification.xml') } }
 		'Set-ABTheme'                     = @{ Enabled = (Test-NotSkipped 'SkipTheme'); Parameters = @{ ThemePath = (Get-File 'Autopilot.theme'); WallpaperPath = (Get-File 'Autopilot.jpg') } }
@@ -919,6 +928,7 @@ function ConvertFrom-ABLegacyConfig {
 		'Remove-ABEdgeBookmarks'          = @{ Enabled = $true; Parameters = @{} }
 		'Add-ABLanguagePacks'             = @{ Enabled = [bool](Get-ChildItem (Join-Path $folder 'LPs') -Filter *.cab -ErrorAction SilentlyContinue); Parameters = @{ LanguagePackFolder = (Get-File 'LPs') } }
 		'Set-ABLanguage'                  = @{ Enabled = [bool](Get-Value 'Language'); Parameters = @{ LanguageXmlPath = (Get-File (Get-Value 'Language')) } }
+		'Set-ABLanguageSettings'          = @{ Enabled = [bool](Get-LanguageSetting 'Language'); Parameters = @{ Language = (Get-LanguageSetting 'Language'); Locale = (Get-LanguageSetting 'Locale'); GeoId = $geoId } }
 		'Disable-ABOptionalFeatures'      = @{ Enabled = ($disableFeatures.Count -gt 0); Parameters = @{ FeatureNames = $disableFeatures } }
 		'Remove-ABWindowsCapabilities'    = @{ Enabled = ($removeCapabilities.Count -gt 0); Parameters = @{ CapabilityNames = $removeCapabilities } }
 		'Add-ABWindowsCapabilities'       = @{ Enabled = ($addFeatures.Count -gt 0); Parameters = @{ CapabilityNames = $addFeatures } }

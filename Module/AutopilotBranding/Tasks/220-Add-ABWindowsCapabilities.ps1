@@ -31,7 +31,7 @@ function Add-ABWindowsCapabilities {
 		foreach ($name in $CapabilityNames) {
 			Write-ABLog "Adding Windows capability: $name"
 			try {
-				$result = Add-WindowsCapability -Online -Name $name
+				$result = Add-WindowsCapability -Online -Name $name -ErrorAction Stop
 				if ($result.RestartNeeded) {
 					Write-ABLog "  Capability $name was installed but requires a restart"
 				}

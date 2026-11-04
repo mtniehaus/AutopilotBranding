@@ -3,11 +3,13 @@ function Update-ABEdge {
 	.SYNOPSIS
 	Downloads and installs the latest Microsoft Edge for Business MSI.
 	.DESCRIPTION
-	If the MSI install fails, MicrosoftEdgeUpdate.exe is triggered to update Edge instead.
+	If the MSI install fails, MicrosoftEdgeUpdate.exe is triggered to update Edge instead.  On ARM64 devices only the
+	ARM64 MSI is used, because installing the x64 MSI replaces the native Edge and breaks Edge and WebView2; if ArmUrl
+	is empty, the update is skipped on ARM64.
 	.PARAMETER Url
 	Download URL for the x64 Edge for Business MSI.
 	.PARAMETER ArmUrl
-	Download URL for the ARM64 Edge for Business MSI.  If empty, the x64 URL is used on ARM64 devices too.
+	Download URL for the ARM64 Edge for Business MSI.  If empty, the Edge update is skipped on ARM64 devices.
 	#>
 	[CmdletBinding()]
 	param (
@@ -15,12 +17,17 @@ function Update-ABEdge {
 		[Parameter(Mandatory = $false)] [string] $ArmUrl = ''
 	)
 
-	if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -and $ArmUrl) {
+	if (Test-ABArm64) {
+		if (-not $ArmUrl) {
+			Write-ABLog 'ARM64 device and no ARM64 Edge for Business MSI specified (ArmUrl), skipping Edge update'
+			return
+		}
 		$downloadUrl = $ArmUrl
+		$dest = "$($env:TEMP)\MicrosoftEdgeEnterpriseARM64.msi"
 	} else {
 		$downloadUrl = $Url
+		$dest = "$($env:TEMP)\MicrosoftEdgeEnterpriseX64.msi"
 	}
-	$dest = "$($env:TEMP)\MicrosoftEdgeEnterprise.msi"
 	Invoke-ABDownload -Url $downloadUrl -Destination $dest
 
 	# The Edge version is in the MSI comments; the first 13 characters contain the version number.

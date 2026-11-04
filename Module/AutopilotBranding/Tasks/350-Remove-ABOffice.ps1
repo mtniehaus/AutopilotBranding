@@ -28,7 +28,7 @@ function Remove-ABOffice {
 	$xml | Out-File -FilePath $xmlPath -Encoding UTF8
 
 	Write-ABLog 'Downloading latest ODT'
-	Invoke-WebRequest -Uri $OdtUrl -OutFile $odtPath -UseBasicParsing
+	Invoke-WebRequest -Uri $OdtUrl -OutFile $odtPath -UseBasicParsing -ErrorAction Stop
 
 	Write-ABLog 'Running ODT'
 	$proc = Start-Process -FilePath $odtPath -ArgumentList "/configure `"$xmlPath`"" -WindowStyle Hidden -Wait -PassThru

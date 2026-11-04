@@ -74,6 +74,21 @@ function Test-ABLegacyStartMenu {
 }
 
 
+function Test-ABArm64 {
+	<#
+	.SYNOPSIS
+	Returns $true if the OS is ARM64.
+	.DESCRIPTION
+	Checks the OS architecture rather than the process architecture, which could be x86 or x64 under emulation on ARM64.
+	#>
+	[CmdletBinding()]
+	[OutputType([bool])]
+	param ()
+
+	($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') -or ($env:PROCESSOR_ARCHITEW6432 -eq 'ARM64')
+}
+
+
 function Set-ABRegistryValue {
 	<#
 	.SYNOPSIS
@@ -219,3 +234,23 @@ function Copy-ABFile {
 	}
 	Copy-Item -LiteralPath $Path -Destination $Destination -Force
 }
+
+
+function Invoke-ABHiveUnload {
+	# Unloads HKLM\TempUser, retrying a few times.  Leaving the default user hive loaded corrupts new profiles
+	# ("The User Profile Service failed the sign-in").  Returns $true if the hive was unloaded.
+	for ($i = 1; $i -le 5; $i++) {
+		[GC]::Collect()
+		[GC]::WaitForPendingFinalizers()
+		$output = & reg.exe unload "$(Get-ABDefaultUserRegistryRoot)" 2>&1
+		if ($LASTEXITCODE -eq 0) {
+			Write-ABLog 'Default user registry hive unloaded'
+			return $true
+		}
+		Write-ABLog "Unable to unload default user registry hive (attempt $i): $output"
+		Start-Sleep -Seconds 2
+	}
+	Write-ABLog 'ERROR: Unable to unload default user registry hive'
+	return $false
+}
+

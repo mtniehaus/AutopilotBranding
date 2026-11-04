@@ -36,6 +36,7 @@ The tasks run in the order shown here, which comes from the numeric prefix of ea
 
 | Cmdlet | What it does | Parameters |
 | --- | --- | --- |
+| `Rename-ABComputer` | Renames the computer; `%SERIAL%` is replaced with the BIOS serial number (max. 15 characters). Don't use with hybrid Entra join. | NewName |
 | `Set-ABStartLayout` | Custom Start menu layout: `Layout.xml` on Windows 10, `start2.bin` + `settings.dat` on Windows 11. | LayoutXmlPath, Start2BinPath, SettingsDatPath |
 | `Set-ABTaskbarLayout` | Custom Windows 11 taskbar layout; optionally unpins the Store. | TaskbarLayoutPath, UnpinStore |
 | `Set-ABTheme` | Installs a theme and wallpaper and makes it the default for new users. | ThemePath, WallpaperPath, UpdateThemeWallpaper |
@@ -47,14 +48,15 @@ The tasks run in the order shown here, which comes from the numeric prefix of ea
 | `Disable-ABWidgets` | Disables Widgets completely via policy. | DisableOnLockScreen |
 | `Set-ABSearchBoxMode` | Taskbar search box mode (Hidden/IconOnly/SearchBox/IconAndLabel). | Mode |
 | `Set-ABTimeZone` | Sets the time zone, or enables location services so that it is detected automatically. | TimeZone |
-| `Remove-ABProvisionedApps` | Removes in-box provisioned apps. | AppNames |
+| `Remove-ABProvisionedApps` | Removes in-box provisioned apps, and the same apps if installed for all users. | AppNames, RemoveInstalledPackages |
 | `Disable-ABCopilotPWA` | Prevents the Copilot PWA from being installed. | |
 | `Install-ABOneDrive` | Installs the OneDrive client per-machine. | Url, ArmUrl |
 | `Disable-ABEdgeDesktopShortcut` | Stops Edge from creating a desktop shortcut. | |
-| `Update-ABEdge` | Installs the latest Edge for Business MSI. | Url, ArmUrl |
+| `Update-ABEdge` | Installs the latest Edge for Business MSI (on ARM64 only the ARM64 MSI is used; skipped if ArmUrl is empty). | Url, ArmUrl |
 | `Remove-ABEdgeBookmarks` | Removes OEM Edge bookmarks from the default profile. | |
 | `Add-ABLanguagePacks` | Installs all language pack CABs in a folder. | LanguagePackFolder |
 | `Set-ABLanguage` | Configures language settings for all users through an INTL.CPL XML file. | LanguageXmlPath |
+| `Set-ABLanguageSettings` | Windows 11 alternative to `Set-ABLanguage`: installs a language from Windows Update and sets the display language, locale, culture and home location for new users. | Language, Locale, GeoId |
 | `Disable-ABOptionalFeatures` | Disables optional features (`Get-WindowsOptionalFeature -Online`). | FeatureNames |
 | `Remove-ABWindowsCapabilities` | Removes capabilities/FODs (`Get-WindowsCapability -Online`, without the tildes and version). | CapabilityNames |
 | `Add-ABWindowsCapabilities` | Adds capabilities/FODs from Windows Update (temporarily bypassing WSUS). | CapabilityNames, BypassWsus |
@@ -65,7 +67,7 @@ The tasks run in the order shown here, which comes from the numeric prefix of ea
 | `Enable-ABUEV` | Enables UE-V and registers templates. | TemplateFolder, SettingsStorageLocation |
 | `Disable-ABNetworkLocationFlyout` | Turns off the network location fly-out. | |
 | `Disable-ABAutoInstalledApps` | Stops Dev Home and the new Outlook from being installed automatically. | DevHome, OutlookNew |
-| `Install-ABWinGetPackages` | Installs apps with WinGet (machine scope). | PackageIds, VCRedistUrl |
+| `Install-ABWinGetPackages` | Installs apps with WinGet (machine scope), with the VC++ runtime for the OS architecture. | PackageIds, VCRedistUrl, VCRedistArmUrl |
 | `Set-ABChromeConfig` | Chrome `initial_preferences`; removes the Chrome desktop shortcut. | InitialPreferencesPath, RemoveDesktopShortcut |
 | `Disable-ABAPv2Pages` | Hides the extra Autopilot device preparation (APv2) OOBE pages. | |
 | `Update-ABApps` | Updates in-box apps (Update-InboxApp) and triggers a Store update scan. | UpdateInboxApps, TriggerStoreScan |
@@ -186,6 +188,21 @@ changed if OOBE has already completed; run `AutopilotBranding.ps1 -Force` to ove
 The commands and detection rule are the same as in v3, so you can replace an existing app's content without
 changing how the app is set up.
 
+## Troubleshooting
+
+- The log is written to `%ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log`. Each task is logged
+  separately, a failure in one task doesn't stop the others, and the log ends with a summary of every task's status.
+- Wallpaper, Start menu and taskbar customizations don't apply (seen on 25H2): check whether the Intune enrollment
+  policy "Windows Backup and Restore > Show restore page" is enabled. When it is, the restore experience can
+  override the default user profile settings.
+- To make apps (not just Windows) use dark mode, add `AppMode=Dark` below `SystemMode=Dark` in the `[VisualStyles]`
+  section of `Autopilot.theme`.
+- ARM64 devices: set `Update-ABEdge -ArmUrl` to the ARM64 Edge for Business MSI URL, otherwise the Edge update is
+  skipped on ARM64 (the x64 MSI breaks Edge and WebView2 there).
+- "The User Profile Service failed the sign-in": this happens if the default user registry hive is left loaded.
+  The module always unloads it when the run finishes (with retries), and unloads a hive left over from an earlier
+  run before loading it again.
+
 ## Adding your own task
 
 Add a file named `Tasks\<order>-<Verb>-AB<Noun>.ps1` to the module that contains a single function with
@@ -203,7 +220,8 @@ Use **Import Config.xml...** in the UI, or:
 .\Build-AutopilotBranding.ps1 -LegacyConfigXml C:\Old\AutopilotBranding\Config.xml -ConfigPath .\MyConfig.json
 ```
 
-Every `Skip*` flag becomes a task that is enabled or disabled, and every setting becomes a parameter. File
+Every `Skip*` flag becomes a task that is enabled or disabled, and every setting becomes a parameter (including the
+v3.3.2 `ComputerName` and `LanguageSettings` elements). File
 parameters point at the files that sit next to the old `Config.xml`.
 
 ## Change history
@@ -212,6 +230,7 @@ parameters point at the files that sit next to the old `Config.xml`.
 - 2024-01-31: Added additional apps to remove, adding timestamps to log messages, cleaned up error logging.
 - 2024-04-27: Added logic to stop the Start menu from popping up each time a new user signs in.
 - 2024-12-26: Added support for removing FODs and disabling optional features.
+- 2026-11-03 (v3.3.2): Failures in one step no longer skip the rest; the default user hive is always unloaded; ARM64 fixes for Edge and the VC++ runtime; optional computer rename; optional PowerShell-based language settings; in-box app removal also removes installed packages; removed obsolete IE http/https associations.
 - v4.0.0 (dev): Restructured into the AutopilotBranding module (one cmdlet per task, settings as parameters), added the builder UI, JSON configuration, and generated runner script.
 
 ## Suggestions?

@@ -2,6 +2,12 @@
   "Version": 1,
   "Description": "Default Autopilot Branding configuration (equivalent to the v3 Config.xml defaults)",
   "Tasks": {
+    "Rename-ABComputer": {
+      "Enabled": false,
+      "Parameters": {
+        "NewName": "PC-%SERIAL%"
+      }
+    },
     "Set-ABStartLayout": {
       "Enabled": true,
       "Parameters": {
@@ -110,7 +116,8 @@
           "MSTeams",
           "Microsoft.M365Companions",
           "9NHT9RB2F4HD"
-        ]
+        ],
+        "RemoveInstalledPackages": true
       }
     },
     "Disable-ABCopilotPWA": {
@@ -149,6 +156,14 @@
       "Enabled": false,
       "Parameters": {
         "LanguageXmlPath": "Assets/Language.xml"
+      }
+    },
+    "Set-ABLanguageSettings": {
+      "Enabled": false,
+      "Parameters": {
+        "Language": "en-GB",
+        "Locale": "en-GB",
+        "GeoId": 242
       }
     },
     "Disable-ABOptionalFeatures": {
@@ -237,7 +252,8 @@
           "Google.Chrome",
           "9WZDNCRD29V9"
         ],
-        "VCRedistUrl": "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        "VCRedistUrl": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+        "VCRedistArmUrl": "https://aka.ms/vs/17/release/vc_redist.arm64.exe"
       }
     },
     "Set-ABChromeConfig": {

@@ -10,12 +10,12 @@ function Disable-ABOptionalFeatures {
 		[Parameter(Mandatory = $true)] [string[]] $FeatureNames
 	)
 
-	$enabledFeatures = Get-WindowsOptionalFeature -Online | Where-Object { $_.State -eq 'Enabled' }
+	$enabledFeatures = Get-WindowsOptionalFeature -Online -ErrorAction Stop | Where-Object { $_.State -eq 'Enabled' }
 	foreach ($feature in $enabledFeatures) {
 		if ($FeatureNames -contains $feature.FeatureName) {
 			Write-ABLog "Disabling optional feature: $($feature.FeatureName)"
 			try {
-				Disable-WindowsOptionalFeature -Online -FeatureName $feature.FeatureName -NoRestart | Out-Null
+				Disable-WindowsOptionalFeature -Online -FeatureName $feature.FeatureName -NoRestart -ErrorAction Stop | Out-Null
 			}
 			catch {
 				Write-ABLog "  Unable to disable optional feature: $_"

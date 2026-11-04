@@ -27,7 +27,8 @@ function Mount-ABDefaultUserHive {
 	Loads the default user profile's NTUSER.DAT into HKLM\TempUser.
 	.DESCRIPTION
 	Calls are reference counted: the hive is only loaded by the first call and only unloaded when the
-	matching number of Dismount-ABDefaultUserHive calls have been made.  Start-AutopilotBranding mounts
+	matching number of Dismount-ABDefaultUserHive calls have been made.  A hive left loaded by a previous run
+	that didn't finish is unloaded and loaded again.  Start-AutopilotBranding mounts
 	the hive once for the whole run so individual tasks don't repeatedly load and unload it.
 	#>
 	[CmdletBinding()]
@@ -36,17 +37,17 @@ function Mount-ABDefaultUserHive {
 	if ($script:ABHiveRefCount -le 0) {
 		$script:ABHiveRefCount = 0
 		if (Test-Path "Registry::HKEY_LOCAL_MACHINE\$($script:ABDefaultUserHiveName)") {
-			Write-ABLog "Default user registry hive is already loaded"
-			$script:ABHiveLoadedByModule = $false
-		} else {
-			$ntuser = Join-Path (Get-ABDefaultUserProfilePath) 'NTUSER.DAT'
-			Write-ABLog "Loading default user registry hive $ntuser"
-			$output = & reg.exe load "$(Get-ABDefaultUserRegistryRoot)" "$ntuser" 2>&1
-			if ($LASTEXITCODE -ne 0) {
-				throw "Unable to load default user registry hive (exit code $LASTEXITCODE): $output"
-			}
-			$script:ABHiveLoadedByModule = $true
+			# Left over from a previous run that didn't finish; unload it first so the load below succeeds
+			Write-ABLog 'Default user registry hive is already loaded (left over from a previous run), unloading it first'
+			Invoke-ABHiveUnload | Out-Null
 		}
+		$ntuser = Join-Path (Get-ABDefaultUserProfilePath) 'NTUSER.DAT'
+		Write-ABLog "Loading default user registry hive $ntuser"
+		$output = & reg.exe load "$(Get-ABDefaultUserRegistryRoot)" "$ntuser" 2>&1
+		if ($LASTEXITCODE -ne 0) {
+			throw "Unable to load default user registry hive (exit code $LASTEXITCODE): $output"
+		}
+		$script:ABHiveLoadedByModule = $true
 	}
 	$script:ABHiveRefCount++
 }
@@ -75,12 +76,7 @@ function Dismount-ABDefaultUserHive {
 
 	if ($script:ABHiveRefCount -eq 0 -and $script:ABHiveLoadedByModule) {
 		Write-ABLog "Unloading default user registry hive"
-		[GC]::Collect()
-		[GC]::WaitForPendingFinalizers()
-		$output = & reg.exe unload "$(Get-ABDefaultUserRegistryRoot)" 2>&1
-		if ($LASTEXITCODE -ne 0) {
-			Write-ABLog "Unable to unload default user registry hive (exit code $LASTEXITCODE): $output"
-		}
+		Invoke-ABHiveUnload | Out-Null
 		$script:ABHiveLoadedByModule = $false
 	}
 }
