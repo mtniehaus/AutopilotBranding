@@ -73,7 +73,9 @@
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
   <OneDriveARMSetup>https://go.microsoft.com/fwlink/?linkid=2282608</OneDriveARMSetup>
   <EdgeBusinessMSI>https://go.microsoft.com/fwlink/?LinkID=2093437</EdgeBusinessMSI>
-  <!-- ARM64 devices only use this MSI (the x64 MSI breaks Edge/WebView2 on ARM64). Leave empty to skip the Edge update on ARM64. -->
+  <!-- The latest Stable Edge MSI for the device's architecture is looked up from the edgeupdates.microsoft.com API.
+       EdgeBusinessMSI (x64) and EdgeBusinessARM (ARM64) are only used if that lookup fails. ARM64 never uses the x64 MSI (it breaks Edge/WebView2). -->
+  <!-- No fixed evergreen URL is known for the ARM64 MSI, so EdgeBusinessARM is empty by default (no fallback on ARM64). -->
   <EdgeBusinessARM></EdgeBusinessARM>
   <AddFeatures>
     <Feature>Microsoft.Windows.Sense.Client~~~~</Feature>

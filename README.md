@@ -27,7 +27,7 @@ These customizations are currently supported:
 
 - Wallpaper, Start menu and taskbar customizations don't apply (seen on 25H2): check whether the Intune enrollment policy "Windows Backup and Restore > Show restore page" is enabled.  When it is, the restore experience can override the default user profile settings.
 - To make apps (not just Windows) use dark mode, add AppMode=Dark below SystemMode=Dark in the [VisualStyles] section of Autopilot.theme.
-- ARM64 devices: set EdgeBusinessARM to the ARM64 Edge for Business MSI URL, otherwise the Edge update step is skipped on ARM64 (the x64 MSI breaks Edge and WebView2 there).
+- Edge update: the script looks up the latest Stable Edge MSI for the device's architecture (x64 or ARM64) from the edgeupdates.microsoft.com API and verifies its hash before installing.  If the lookup fails, it falls back to EdgeBusinessMSI (x64) or EdgeBusinessARM (ARM64) in Config.xml.  ARM64 devices never use the x64 MSI (it breaks Edge and WebView2 there).
 - The script log is written to %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log.  A failure in one step is logged and the remaining steps still run.
 
 ## Requirements and Dependencies
