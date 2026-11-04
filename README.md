@@ -8,27 +8,37 @@ Starting with v4, the old single `AutopilotBranding.ps1` script and its `Config.
 
 - **The `AutopilotBranding` module** (`Module\AutopilotBranding`). Each configuration task is a cmdlet in its own
   `.ps1` file, and its settings are passed as parameters instead of being read from a configuration file.
-- **A builder UI** (`Show-AutopilotBrandingBuilder.ps1`). It lists every task with the parameters it supports. You
-  pick the tasks to run and set the parameter values, then save your choices to a JSON file. It also generates the
-  output folder and packages it as an Intune Win32 app (`.intunewin`).
-- **A headless builder** (`Build-AutopilotBranding.ps1`). It does the same from a JSON file without the UI. This
-  is useful for CI and for `makeapp.cmd`.
+- **A builder UI** (the `Show-AutopilotBrandingBuilder` cmdlet, started by `ShowBuilder.cmd`). It lists every
+  task with the parameters it supports. You pick the tasks to run and set the parameter values, then save your
+  choices to a JSON file. It also generates the output folder and packages it as an Intune Win32 app (`.intunewin`).
+- **A headless builder** (the `Build-AutopilotBranding` cmdlet, run by `makeapp.cmd`). It does the same from a JSON
+  file without the UI, which is useful for CI.
+
+Both cmdlets are part of the module, and everything works with Windows PowerShell 5.1 and PowerShell 7 (the tests
+run with 5.1 and 7.6).
 
 ## Repository layout
 
 ```
 AutopilotBranding.json            Default configuration (equivalent to the v3 Config.xml defaults)
-Show-AutopilotBrandingBuilder.ps1 Builder UI (Windows, WPF)
-Build-AutopilotBranding.ps1       Headless builder (output folder and .intunewin)
-makeapp.cmd                       Runs the headless builder on AutopilotBranding.json
+ShowBuilder.cmd                   Loads the module and runs Show-AutopilotBrandingBuilder (the builder UI)
+makeapp.cmd                       Loads the module and runs Build-AutopilotBranding on AutopilotBranding.json
 Assets\                           Sample files used by the default configuration (theme, wallpaper, layouts, ...)
-Builder\                          Builder module (task discovery, JSON handling, output generation, packaging)
+Tests\Test-AutopilotBranding.ps1  Automated tests (run with each PowerShell version)
 Module\AutopilotBranding\
     AutopilotBranding.psd1/.psm1  Module manifest and loader
-    Private\Common.ps1            Shared helpers (default user hive, registry, downloads, OOBE check, ...)
+    Public\Show-AutopilotBrandingBuilder.ps1, Build-AutopilotBranding.ps1
+                                  The builder UI and headless builder cmdlets
+    Public\Builder.ps1            Builder functions (task discovery, JSON handling, output generation, packaging)
     Public\Session.ps1            Run framework (Start-/Stop-AutopilotBranding, Invoke-ABTask, Write-ABLog, ...)
+    Private\Common.ps1            Shared task helpers (default user hive, registry, downloads, OOBE check, ...)
+    Private\BuilderUI.ps1         The builder window (WPF)
+    Private\BuilderHelpers.ps1    Internal builder helpers
     Tasks\<order>-<Cmdlet>.ps1    One configuration task (cmdlet) per file
 ```
+
+`ShowBuilder.cmd` and `makeapp.cmd` use PowerShell 7 (`pwsh.exe`) if it is installed, otherwise Windows PowerShell
+5.1. Set the `AB_POWERSHELL` environment variable to the PowerShell executable to use a specific one.
 
 ## Configuration tasks
 
@@ -78,8 +88,11 @@ Each cmdlet has comment-based help (`Get-Help Set-ABTheme -Full`). The builder U
 
 ## Using the builder UI
 
+Run `ShowBuilder.cmd`, or from PowerShell:
+
 ```powershell
-.\Show-AutopilotBrandingBuilder.ps1
+Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1
+Show-AutopilotBrandingBuilder -ConfigPath .\AutopilotBranding.json
 ```
 
 1. The default configuration (`AutopilotBranding.json`) is loaded. Use **Open...** to load another configuration,
@@ -163,13 +176,12 @@ package. Every build creates the package. You can build in any of these ways:
 - From PowerShell (`-PackagePath` is optional and defaults to the output folder's parent folder):
 
   ```powershell
-  .\Build-AutopilotBranding.ps1 -ConfigPath .\MyConfig.json -OutputPath .\Output -PackagePath .
+  Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1
+  Build-AutopilotBranding -ConfigPath .\MyConfig.json -OutputPath .\Output -PackagePath .
   ```
 
-- Run `makeapp.cmd` from a command prompt. (It will not work if you are using Terminal.) It builds `.\Output` from
-  `AutopilotBranding.json` and creates `AutopilotBranding.intunewin` in the repository folder.
-
-`makeapp.ps1` has been removed; its logic is now `New-ABIntuneWinPackage` in the builder module.
+- Run `makeapp.cmd`. It builds `.\Output` from `AutopilotBranding.json` and creates `AutopilotBranding.intunewin`
+  in the repository folder.
 
 ## Using
 
@@ -209,6 +221,19 @@ changing how the app is set up.
   The module always unloads it when the run finishes (with retries), and unloads a hive left over from an earlier
   run before loading it again.
 
+## Testing
+
+`Tests\Test-AutopilotBranding.ps1` checks the module, the builder functions, the builder UI (created and driven
+without being shown), the generated runner script, packaging, and the `.cmd` launchers. Run it with each PowerShell
+version you use:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
+```
+
+The GitHub workflow runs it with Windows PowerShell 5.1 and PowerShell 7.6 before building the app.
+
 ## Adding your own task
 
 Add a file named `Tasks\<order>-<Verb>-AB<Noun>.ps1` to the module that contains a single function with
@@ -223,7 +248,8 @@ folder that should be copied into the package. Use the helpers in `Private\Commo
 Use **Import Config.xml...** in the UI, or:
 
 ```powershell
-.\Build-AutopilotBranding.ps1 -LegacyConfigXml C:\Old\AutopilotBranding\Config.xml -ConfigPath .\MyConfig.json
+Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1
+Build-AutopilotBranding -LegacyConfigXml C:\Old\AutopilotBranding\Config.xml -ConfigPath .\MyConfig.json
 ```
 
 Every `Skip*` flag becomes a task that is enabled or disabled, and every setting becomes a parameter (including the

@@ -18,30 +18,41 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Check PowerShell syntax
+    - name: Install PowerShell 7.6
       shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
-        $problems = @()
-        Get-ChildItem -Recurse -Include *.ps1, *.psm1, *.psd1 | ForEach-Object {
-          $tokens = $null
-          $parseErrors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
-          foreach ($e in $parseErrors) {
-            $problems += "$($_.FullName):$($e.Extent.StartLineNumber): $($e.Message)"
-          }
+        $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+        $releases = Invoke-RestMethod -Uri 'https://api.github.com/repos/PowerShell/PowerShell/releases?per_page=100' -Headers $headers
+        $candidates = @($releases | Where-Object { $_.tag_name -match '^v7\.6\.' })
+        $release = $candidates | Where-Object { -not $_.prerelease } | Select-Object -First 1
+        if (-not $release) {
+          Write-Warning 'No stable PowerShell 7.6 release found, using the latest 7.6 preview'
+          $release = $candidates | Select-Object -First 1
         }
-        if ($problems) { $problems; exit 1 }
+        if (-not $release) { throw 'No PowerShell 7.6 release found' }
+        $asset = $release.assets | Where-Object { $_.name -like 'PowerShell-*-win-x64.zip' } | Select-Object -First 1
+        $zip = Join-Path $env:RUNNER_TEMP 'pwsh76.zip'
+        $folder = Join-Path $env:RUNNER_TEMP 'pwsh76'
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip
+        Expand-Archive -Path $zip -DestinationPath $folder -Force
+        $exe = Join-Path $folder 'pwsh.exe'
+        & $exe -NoProfile -Command '"Installed PowerShell $($PSVersionTable.PSVersion)"'
+        "PWSH76=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-    - name: Import module (Windows PowerShell 5.1)
-      shell: powershell
-      run: |
-        Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1 -Force -ErrorAction Stop
-        Get-Command -Module AutopilotBranding | Format-Table Name -AutoSize
+    - name: Test with Windows PowerShell 5.1
+      shell: cmd
+      run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File Tests\Test-AutopilotBranding.ps1
+
+    - name: Test with PowerShell 7.6
+      shell: cmd
+      run: '"%PWSH76%" -NoProfile -ExecutionPolicy Bypass -File Tests\Test-AutopilotBranding.ps1'
 
     - name: Create Intune app
       shell: cmd
       run: |
-        MakeApp.cmd
+        call MakeApp.cmd || exit /b 1
         mkdir Build
         copy AutopilotBranding.intunewin Build
 

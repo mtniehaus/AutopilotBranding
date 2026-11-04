@@ -1,10 +1,9 @@
-# AutopilotBranding.Builder
-#
-# Build-time helpers used by Show-AutopilotBrandingBuilder.ps1 (UI) and Build-AutopilotBranding.ps1 (headless):
-#   - discover the configuration tasks (cmdlets) and their parameters from the AutopilotBranding module source
+# Builder functions: used by Show-AutopilotBrandingBuilder (UI) and Build-AutopilotBranding (headless) to
+#   - discover the configuration tasks (cmdlets) and their parameters from the module's Tasks folder
 #   - load, complete, validate and save JSON configuration files
 #   - convert a legacy (v3) Config.xml file into a JSON configuration
 #   - generate an output folder containing the module, the assets, and a runner script (AutopilotBranding.ps1)
+#   - package the output folder as an Intune Win32 app (.intunewin)
 #
 # Parameter conventions used by the builder:
 #   - Parameters whose name ends in "Path" are local files and parameters whose name ends in "Folder" are local
@@ -14,59 +13,40 @@
 #   - [bool] and [switch] parameters are shown as check boxes; [ValidateSet()] parameters as drop-down lists.
 
 $script:ConfigurationVersion = 1
-$script:RepositoryRoot = Split-Path -Path $PSScriptRoot -Parent
-
 
 function Get-ABDefaultModulePath {
 	<#
 	.SYNOPSIS
-	Returns the path of the AutopilotBranding module source folder in this repository.
+	Returns the folder of the loaded AutopilotBranding module (the module that is copied into the output).
 	#>
 	[CmdletBinding()]
 	[OutputType([string])]
 	param ()
 
-	Join-Path $script:RepositoryRoot 'Module\AutopilotBranding'
+	$script:ABModuleRoot
 }
 
 
 function Get-ABDefaultConfigurationPath {
 	<#
 	.SYNOPSIS
-	Returns the path of the default configuration file (AutopilotBranding.json) in this repository.
+	Returns the path of the default configuration file (AutopilotBranding.json).
+	.DESCRIPTION
+	When the module is loaded from a copy of the repository (Module\AutopilotBranding), this is the
+	AutopilotBranding.json file in the repository root.  Otherwise it is AutopilotBranding.json in the current folder.
 	#>
 	[CmdletBinding()]
 	[OutputType([string])]
 	param ()
 
-	Join-Path $script:RepositoryRoot 'AutopilotBranding.json'
-}
-
-
-function Get-ABAstValue {
-	# Evaluates a (constant) parameter default value AST.  Arrays are returned wrapped so they aren't unrolled.
-	param ($Ast)
-
-	if ($null -eq $Ast) {
-		return $null
-	}
-	if ($Ast -is [System.Management.Automation.Language.VariableExpressionAst]) {
-		switch ($Ast.VariablePath.UserPath) {
-			'true' { return $true }
-			'false' { return $false }
-			'null' { return $null }
+	$repositoryRoot = Split-Path -Path (Split-Path -Path $script:ABModuleRoot -Parent) -Parent
+	if ($repositoryRoot) {
+		$candidate = Join-Path $repositoryRoot 'AutopilotBranding.json'
+		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+			return $candidate
 		}
 	}
-	try {
-		$value = $Ast.SafeGetValue()
-	}
-	catch {
-		$value = $Ast.Extent.Text
-	}
-	if ($value -is [array]) {
-		return , $value
-	}
-	return $value
+	Join-Path (Get-Location).ProviderPath 'AutopilotBranding.json'
 }
 
 
@@ -221,35 +201,6 @@ function Get-ABTaskDefinition {
 }
 
 
-function ConvertTo-ABOrderedHashtable {
-	# Recursively converts PSCustomObjects (from ConvertFrom-Json) into ordered hashtables.
-	param ($InputObject)
-
-	if ($null -eq $InputObject) {
-		return $null
-	}
-	if ($InputObject -is [System.Management.Automation.PSCustomObject]) {
-		$result = [ordered]@{}
-		foreach ($property in $InputObject.PSObject.Properties) {
-			$result[$property.Name] = ConvertTo-ABOrderedHashtable $property.Value
-		}
-		return $result
-	}
-	if ($InputObject -is [System.Collections.IDictionary]) {
-		$result = [ordered]@{}
-		foreach ($key in $InputObject.Keys) {
-			$result[$key] = ConvertTo-ABOrderedHashtable $InputObject[$key]
-		}
-		return $result
-	}
-	if ($InputObject -is [array]) {
-		$items = @(foreach ($item in $InputObject) { ConvertTo-ABOrderedHashtable $item })
-		return , $items
-	}
-	return $InputObject
-}
-
-
 function ConvertTo-ABParameterValue {
 	<#
 	.SYNOPSIS
@@ -286,16 +237,6 @@ function ConvertTo-ABParameterValue {
 			return [string]$Value
 		}
 	}
-}
-
-
-function Test-ABValueEqual {
-	# Compares two parameter values (including arrays).
-	param ($A, $B)
-
-	$jsonA = ConvertTo-Json -InputObject $A -Compress -Depth 5
-	$jsonB = ConvertTo-Json -InputObject $B -Compress -Depth 5
-	return $jsonA -eq $jsonB
 }
 
 
@@ -417,7 +358,7 @@ function Save-ABConfiguration {
 	}
 	$json = ConvertTo-Json -InputObject $Configuration -Depth 10
 	# Windows PowerShell 5.1 escapes some characters and uses wide indentation; both are valid JSON.
-	$fullPath = [System.IO.Path]::GetFullPath($Path)
+	$fullPath = ConvertTo-ABFullPath $Path
 	[System.IO.File]::WriteAllText($fullPath, $json, (New-Object System.Text.UTF8Encoding($false)))
 }
 
@@ -436,9 +377,9 @@ function Resolve-ABAssetPath {
 
 	$expanded = [Environment]::ExpandEnvironmentVariables($Path)
 	if ([System.IO.Path]::IsPathRooted($expanded)) {
-		return [System.IO.Path]::GetFullPath($expanded)
+		return ConvertTo-ABFullPath $expanded
 	}
-	return [System.IO.Path]::GetFullPath((Join-Path $BasePath $expanded))
+	return ConvertTo-ABFullPath (Join-Path $BasePath $expanded)
 }
 
 
@@ -454,8 +395,8 @@ function Get-ABRelativePath {
 		[Parameter(Mandatory = $true)] [string] $BasePath
 	)
 
-	$full = [System.IO.Path]::GetFullPath($Path)
-	$base = [System.IO.Path]::GetFullPath($BasePath).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+	$full = ConvertTo-ABFullPath $Path
+	$base = (ConvertTo-ABFullPath $BasePath).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
 	if ($full.StartsWith($base, [System.StringComparison]::OrdinalIgnoreCase)) {
 		return $full.Substring($base.Length)
 	}
@@ -573,7 +514,7 @@ Autopilot Branding runner script.
 .DESCRIPTION
 Loads the AutopilotBranding module (v$ModuleVersion) and calls each configuration task with the configured
 parameters.  This file was generated by the AutopilotBranding builder on $generated; rather than editing it, change
-the configuration (AutopilotBranding.json) with Show-AutopilotBrandingBuilder.ps1 and generate it again.
+the configuration (AutopilotBranding.json) with Show-AutopilotBrandingBuilder and generate it again.
 
 Enabled tasks:
 $(($enabled | ForEach-Object { "  $($_.Name)" }) -join $nl)
@@ -702,7 +643,7 @@ function New-ABOutput {
 		throw "The configuration has errors:$([Environment]::NewLine)$text"
 	}
 
-	$OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
+	$OutputPath = ConvertTo-ABFullPath $OutputPath
 	if (Test-Path $OutputPath) {
 		$existing = @(Get-ChildItem -Path $OutputPath -Force)
 		if ($existing.Count -gt 0) {
@@ -809,8 +750,8 @@ function New-ABIntuneWinPackage {
 		[string] $SetupFile = 'AutopilotBranding.ps1'
 	)
 
-	$SourcePath = [System.IO.Path]::GetFullPath($SourcePath)
-	$DestinationPath = [System.IO.Path]::GetFullPath($DestinationPath)
+	$SourcePath = ConvertTo-ABFullPath $SourcePath
+	$DestinationPath = ConvertTo-ABFullPath $DestinationPath
 	if (-not (Test-Path -LiteralPath (Join-Path $SourcePath $SetupFile) -PathType Leaf)) {
 		throw "Setup file $SetupFile not found in $SourcePath"
 	}
@@ -867,7 +808,7 @@ function ConvertFrom-ABLegacyConfig {
 		[object[]] $TaskDefinitions = @(Get-ABTaskDefinition)
 	)
 
-	$folder = Split-Path -Path ([System.IO.Path]::GetFullPath($Path)) -Parent
+	$folder = Split-Path -Path (ConvertTo-ABFullPath $Path) -Parent
 	[xml]$xml = Get-Content -Path $Path -Raw
 	$c = $xml.Config
 
@@ -966,23 +907,3 @@ function ConvertFrom-ABLegacyConfig {
 	}
 	Complete-ABConfiguration -Configuration $configuration -TaskDefinitions $TaskDefinitions
 }
-
-
-Export-ModuleMember -Function @(
-	'Get-ABDefaultModulePath'
-	'Get-ABDefaultConfigurationPath'
-	'Get-ABTaskDefinition'
-	'New-ABConfiguration'
-	'Complete-ABConfiguration'
-	'Read-ABConfiguration'
-	'Save-ABConfiguration'
-	'Test-ABConfiguration'
-	'Resolve-ABAssetPath'
-	'Get-ABRelativePath'
-	'ConvertTo-ABParameterValue'
-	'ConvertTo-ABLiteral'
-	'Get-ABRunnerScript'
-	'New-ABOutput'
-	'New-ABIntuneWinPackage'
-	'ConvertFrom-ABLegacyConfig'
-)
