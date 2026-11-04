@@ -254,3 +254,39 @@ function Invoke-ABHiveUnload {
 	return $false
 }
 
+
+
+function Get-ABLatestEdgeMsi {
+	<#
+	.SYNOPSIS
+	Returns the latest Edge Stable Enterprise MSI (Version, Url, Hash, HashAlgorithm) for an architecture, or $null.
+	.DESCRIPTION
+	Queries the edgeupdates.microsoft.com API.  Throws if the API can't be reached.
+	#>
+	[CmdletBinding()]
+	param (
+		[Parameter(Mandatory = $true)] [ValidateSet('x64', 'arm64')] [string] $Architecture
+	)
+
+	# Parentheses are required: Windows PowerShell 5.1 otherwise passes the JSON array down the pipeline as one object
+	$release = (Invoke-RestMethod -Uri 'https://edgeupdates.microsoft.com/api/products' -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop) |
+		Where-Object Product -EQ 'Stable' |
+		Select-Object -ExpandProperty Releases |
+		Where-Object { $_.Platform -eq 'Windows' -and $_.Architecture -eq $Architecture } |
+		Sort-Object { [version]$_.ProductVersion } -Descending |
+		Select-Object -First 1
+	if (-not $release) {
+		return $null
+	}
+	$msi = $release.Artifacts | Where-Object ArtifactName -EQ 'msi' | Select-Object -First 1
+	if (-not $msi -or -not $msi.Location) {
+		return $null
+	}
+
+	[pscustomobject]@{
+		Version       = $release.ProductVersion
+		Url           = $msi.Location
+		Hash          = $msi.Hash
+		HashAlgorithm = $msi.HashAlgorithm
+	}
+}

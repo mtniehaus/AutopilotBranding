@@ -138,6 +138,7 @@
     "Update-ABEdge": {
       "Enabled": true,
       "Parameters": {
+        "LookUpLatest": true,
         "Url": "https://go.microsoft.com/fwlink/?LinkID=2093437",
         "ArmUrl": ""
       }

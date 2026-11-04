@@ -52,7 +52,7 @@ The tasks run in the order shown here, which comes from the numeric prefix of ea
 | `Disable-ABCopilotPWA` | Prevents the Copilot PWA from being installed. | |
 | `Install-ABOneDrive` | Installs the OneDrive client per-machine. | Url, ArmUrl |
 | `Disable-ABEdgeDesktopShortcut` | Stops Edge from creating a desktop shortcut. | |
-| `Update-ABEdge` | Installs the latest Edge for Business MSI (on ARM64 only the ARM64 MSI is used; skipped if ArmUrl is empty). | Url, ArmUrl |
+| `Update-ABEdge` | Installs the latest Stable Edge for Business MSI for the device's architecture, looked up from the edgeupdates API with its hash verified; `Url`/`ArmUrl` are fallbacks. | LookUpLatest, Url, ArmUrl |
 | `Remove-ABEdgeBookmarks` | Removes OEM Edge bookmarks from the default profile. | |
 | `Add-ABLanguagePacks` | Installs all language pack CABs in a folder. | LanguagePackFolder |
 | `Set-ABLanguage` | Configures language settings for all users through an INTL.CPL XML file. | LanguageXmlPath |
@@ -201,8 +201,10 @@ changing how the app is set up.
   override the default user profile settings.
 - To make apps (not just Windows) use dark mode, add `AppMode=Dark` below `SystemMode=Dark` in the `[VisualStyles]`
   section of `Autopilot.theme`.
-- ARM64 devices: set `Update-ABEdge -ArmUrl` to the ARM64 Edge for Business MSI URL, otherwise the Edge update is
-  skipped on ARM64 (the x64 MSI breaks Edge and WebView2 there).
+- Edge update: `Update-ABEdge` looks up the latest Stable Edge MSI for the device's architecture (x64 or ARM64)
+  from the edgeupdates.microsoft.com API and verifies its hash before installing. If the lookup fails, it falls
+  back to `Url` (x64) or `ArmUrl` (ARM64); with no `ArmUrl`, the update is then skipped on ARM64. ARM64 devices
+  never use the x64 MSI (it breaks Edge and WebView2 there).
 - "The User Profile Service failed the sign-in": this happens if the default user registry hive is left loaded.
   The module always unloads it when the run finishes (with retries), and unloads a hive left over from an earlier
   run before loading it again.
@@ -234,6 +236,7 @@ parameters point at the files that sit next to the old `Config.xml`.
 - 2024-01-31: Added additional apps to remove, adding timestamps to log messages, cleaned up error logging.
 - 2024-04-27: Added logic to stop the Start menu from popping up each time a new user signs in.
 - 2024-12-26: Added support for removing FODs and disabling optional features.
+- 2026-11-04 (PR #100): The Edge update looks up the latest Stable MSI for x64 and ARM64 from the edgeupdates.microsoft.com API and verifies its hash.
 - 2026-11-03 (v3.3.2): Failures in one step no longer skip the rest; the default user hive is always unloaded; ARM64 fixes for Edge and the VC++ runtime; optional computer rename; optional PowerShell-based language settings; in-box app removal also removes installed packages; removed obsolete IE http/https associations.
 - v4.0.0 (dev): Restructured into the AutopilotBranding module (one cmdlet per task, settings as parameters), added the builder UI, JSON configuration, and generated runner script.
 
