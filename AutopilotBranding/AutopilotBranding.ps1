@@ -96,6 +96,35 @@ function Dismount-DefaultUserHive {
 	Log "ERROR: Unable to unload default user registry"
 }
 
+
+function Get-LatestEdgeMsi {
+	# Returns the latest Edge Stable Enterprise MSI (Version, Url, Hash, HashAlgorithm) for the architecture, or $null.
+	# Throws if the API can't be reached. Doesn't call Log, because Log writes to the output stream and would end up in the return value.
+	[CmdletBinding()]
+	param (
+		[Parameter(Mandatory = $true)] [ValidateSet("x64", "arm64")] [String] $Architecture
+	)
+
+	# Parentheses are required: PS 5.1 otherwise passes the JSON array down the pipeline as one object
+	$release = (Invoke-RestMethod -Uri "https://edgeupdates.microsoft.com/api/products" -UseBasicParsing -TimeoutSec 60) |
+		Where-Object Product -eq "Stable" |
+		Select-Object -ExpandProperty Releases |
+		Where-Object { $_.Platform -eq "Windows" -and $_.Architecture -eq $Architecture } |
+		Sort-Object { [version]$_.ProductVersion } -Descending |
+		Select-Object -First 1
+	$msi = $release.Artifacts | Where-Object ArtifactName -eq "msi" | Select-Object -First 1
+	if (-not $msi.Location) {
+		return $null
+	}
+
+	[PSCustomObject]@{
+		Version       = $release.ProductVersion
+		Url           = $msi.Location
+		Hash          = $msi.Hash
+		HashAlgorithm = $msi.HashAlgorithm
+	}
+}
+
 # Get the Current start time in UTC format, so that Time Zone Changes don't affect total runtime calculation
 $startUtc = [datetime]::UtcNow
 
@@ -449,27 +478,62 @@ try
 	if ($config.Config.SkipEdgeUpdate -ine "true") {
 		# Installing the x64 MSI on ARM64 replaces the native Edge and breaks WebView2, so only use the ARM64 MSI there
 		if ($isArm64) {
-			$url = $config.Config.EdgeBusinessARM
+			$edgeArch = "arm64"
+			$fallbackUrl = $config.Config.EdgeBusinessARM
 			$dest = "$($env:TEMP)\MicrosoftEdgeEnterpriseARM64.msi"
 		} else {
-			$url = $config.Config.EdgeBusinessMSI
+			$edgeArch = "x64"
+			$fallbackUrl = $config.Config.EdgeBusinessMSI
 			$dest = "$($env:TEMP)\MicrosoftEdgeEnterpriseX64.msi"
 		}
 
+		# Look up the latest Stable MSI (with its hash); fall back to the URL in Config.xml if the lookup fails
+		$url = $null
+		$edgeMsi = $null
+		try {
+			Log "Looking up latest Edge Stable $edgeArch MSI from edgeupdates.microsoft.com"
+			$edgeMsi = Get-LatestEdgeMsi -Architecture $edgeArch
+			if ($edgeMsi) {
+				$url = $edgeMsi.Url
+				Log "Found Edge Stable $edgeArch $($edgeMsi.Version)"
+			} else {
+				Log "No Edge Stable $edgeArch MSI found in edgeupdates response"
+			}
+		} catch {
+			Log "Unable to query edgeupdates.microsoft.com: $_"
+		}
+		if (-not $url -and $fallbackUrl) {
+			$url = $fallbackUrl
+			Log "Using Edge for Business MSI URL from Config.xml instead"
+		}
+
 		if (-not $url) {
-			Log "No Edge for Business MSI specified for this architecture (EdgeBusinessARM for ARM64), skipping Edge update"
+			Log "No Edge for Business MSI available for $edgeArch, skipping Edge update"
 		} else {
 			try {
 				$client = new-object System.Net.WebClient
 				Log "Downloading Latest Edge for Business: $url"
 				$client.DownloadFile($url, $dest)
 
-				# Edge Version is buried in Comments of MSI. Parse the first 13 charaters to pull out Version number.
-				$shell = New-Object -ComObject Shell.Application
-				$folder = $shell.NameSpace((Split-Path $dest))
-				$file = $folder.ParseName((Split-Path $dest -Leaf))
-				$comment = $folder.GetDetailsOf($file, 24) # 24 is the index for comments
-				$versionOnly = $comment.Substring(0, [Math]::Min(13, $comment.Length))
+				if ($edgeMsi -and $edgeMsi.Hash) {
+					$actualHash = (Get-FileHash -Path $dest -Algorithm $edgeMsi.HashAlgorithm).Hash
+					if ($actualHash -ne $edgeMsi.Hash) {
+						Remove-Item $dest -Force -ErrorAction SilentlyContinue
+						throw "Downloaded MSI hash mismatch (expected $($edgeMsi.Hash), got $actualHash)"
+					}
+					Log "Edge MSI $($edgeMsi.HashAlgorithm) hash verified"
+				}
+
+				if ($edgeMsi) {
+					$versionOnly = $edgeMsi.Version
+				} else {
+					# Edge Version is buried in Comments of MSI. Parse the first 13 charaters to pull out Version number.
+					$shell = New-Object -ComObject Shell.Application
+					$folder = $shell.NameSpace((Split-Path $dest))
+					$file = $folder.ParseName((Split-Path $dest -Leaf))
+					$comment = $folder.GetDetailsOf($file, 24) # 24 is the index for comments
+					$versionOnly = $comment.Substring(0, [Math]::Min(13, $comment.Length))
+				}
 
 				Log "Installing Edge for Business V:$versionOnly"
 				$arguments = "/i `"$($dest)`" /qn /L*v $($env:TEMP)\EdgeBusiness.log"
