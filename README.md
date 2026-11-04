@@ -10,7 +10,7 @@ Starting with v4, the old single `AutopilotBranding.ps1` script and its `Config.
   `.ps1` file, and its settings are passed as parameters instead of being read from a configuration file.
 - **A builder UI** (`Show-AutopilotBrandingBuilder.ps1`). It lists every task with the parameters it supports. You
   pick the tasks to run and set the parameter values, then save your choices to a JSON file. It also generates the
-  output folder and, optionally, packages it as an Intune Win32 app (`.intunewin`).
+  output folder and packages it as an Intune Win32 app (`.intunewin`).
 - **A headless builder** (`Build-AutopilotBranding.ps1`). It does the same from a JSON file without the UI. This
   is useful for CI and for `makeapp.cmd`.
 
@@ -19,8 +19,8 @@ Starting with v4, the old single `AutopilotBranding.ps1` script and its `Config.
 ```
 AutopilotBranding.json            Default configuration (equivalent to the v3 Config.xml defaults)
 Show-AutopilotBrandingBuilder.ps1 Builder UI (Windows, WPF)
-Build-AutopilotBranding.ps1       Headless builder (output folder and, with -Package, the .intunewin)
-makeapp.cmd                       Runs the headless builder on AutopilotBranding.json, with -Package
+Build-AutopilotBranding.ps1       Headless builder (output folder and .intunewin)
+makeapp.cmd                       Runs the headless builder on AutopilotBranding.json
 Assets\                           Sample files used by the default configuration (theme, wallpaper, layouts, ...)
 Builder\                          Builder module (task discovery, JSON handling, output generation, packaging)
 Module\AutopilotBranding\
@@ -88,8 +88,8 @@ Each cmdlet has comment-based help (`Get-Help Set-ABTheme -Full`). The builder U
    parameters, then enter the values: check boxes for on/off settings, drop-down lists for fixed choices, one value
    per line for lists, and **Browse...** for files and folders.
 3. **Save** / **Save As...** writes your choices to a JSON file.
-4. Choose an output folder and click **Generate output**. Check **Create .intunewin package** to also package the
-   output as `AutopilotBranding.intunewin`, which is created in the output folder's parent folder.
+4. Choose an output folder and click **Generate output and .intunewin**. This generates the output folder and
+   packages it as `AutopilotBranding.intunewin` in the output folder's parent folder.
 
 ## The JSON configuration
 
@@ -117,7 +117,11 @@ Each cmdlet has comment-based help (`Get-Help Set-ABTheme -Full`). The builder U
 - When a task or parameter is missing from the file, its default is used. Tasks added in a newer module version show
   up disabled.
 
-## The generated output folder
+## The generated output folder and package
+
+Every build creates the output folder and then packages it as `AutopilotBranding.intunewin`. By default the
+package goes in the output folder's parent folder; for example, `.\Output` produces `.\AutopilotBranding.intunewin`.
+The output folder contains:
 
 ```
 AutopilotBranding.ps1    Runner script: loads the module and calls each enabled task with its parameters
@@ -153,13 +157,13 @@ the script.
 
 Packaging uses `New-IntuneWinPackage` from the SvRooij.ContentPrep.Cmdlet module. The module, and the NuGet
 package provider it needs, are installed for the current user from the PowerShell Gallery the first time you
-package. You can package in any of these ways:
+package. Every build creates the package. You can build in any of these ways:
 
-- In the UI, check **Create .intunewin package** before clicking **Generate output**.
-- From PowerShell:
+- In the UI, click **Generate output and .intunewin**.
+- From PowerShell (`-PackagePath` is optional and defaults to the output folder's parent folder):
 
   ```powershell
-  .\Build-AutopilotBranding.ps1 -ConfigPath .\MyConfig.json -OutputPath .\Output -Package -PackagePath .
+  .\Build-AutopilotBranding.ps1 -ConfigPath .\MyConfig.json -OutputPath .\Output -PackagePath .
   ```
 
 - Run `makeapp.cmd` from a command prompt. (It will not work if you are using Terminal.) It builds `.\Output` from
