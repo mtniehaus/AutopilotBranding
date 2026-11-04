@@ -666,7 +666,7 @@ function New-ABOutput {
 	.SYNOPSIS
 	Generates an output folder containing the module, the assets, the configuration and the runner script.
 	.DESCRIPTION
-	The output folder can be packaged as an Intune Win32 app (see makeapp.ps1); the install command is
+	The output folder can be packaged as an Intune Win32 app with New-ABIntuneWinPackage; the install command is
 	powershell.exe -noprofile -executionpolicy bypass -file .\AutopilotBranding.ps1
 	.PARAMETER Configuration
 	Configuration (see Read-ABConfiguration).
@@ -781,6 +781,72 @@ function New-ABOutput {
 		EnabledTasks = @($definitions | Where-Object { $Configuration.Tasks[$_.Name].Enabled } | ForEach-Object { $_.Name })
 		Assets       = @($sourceToName.Values)
 	}
+}
+
+
+function New-ABIntuneWinPackage {
+	<#
+	.SYNOPSIS
+	Packages an output folder (see New-ABOutput) as an Intune Win32 app (.intunewin file).
+	.DESCRIPTION
+	Uses New-IntuneWinPackage from the SvRooij.ContentPrep.Cmdlet module, which is installed for the current user
+	from the PowerShell Gallery if needed (along with the NuGet package provider).  The .intunewin file is named
+	after the setup file, e.g. AutopilotBranding.intunewin; an existing file with that name is replaced.
+	.PARAMETER SourcePath
+	Folder to package (the generated output folder).
+	.PARAMETER DestinationPath
+	Folder where the .intunewin file is created.  It must not be inside SourcePath.
+	.PARAMETER SetupFile
+	Setup file inside SourcePath (the runner script).
+	.OUTPUTS
+	The full path of the .intunewin file.
+	#>
+	[CmdletBinding()]
+	[OutputType([string])]
+	param (
+		[Parameter(Mandatory = $true)] [string] $SourcePath,
+		[Parameter(Mandatory = $true)] [string] $DestinationPath,
+		[string] $SetupFile = 'AutopilotBranding.ps1'
+	)
+
+	$SourcePath = [System.IO.Path]::GetFullPath($SourcePath)
+	$DestinationPath = [System.IO.Path]::GetFullPath($DestinationPath)
+	if (-not (Test-Path -LiteralPath (Join-Path $SourcePath $SetupFile) -PathType Leaf)) {
+		throw "Setup file $SetupFile not found in $SourcePath"
+	}
+	$sourcePrefix = $SourcePath.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+	if ($DestinationPath.Equals($SourcePath.TrimEnd('\', '/'), [System.StringComparison]::OrdinalIgnoreCase) -or
+		$DestinationPath.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+		throw "The package destination ($DestinationPath) must not be inside the folder being packaged ($SourcePath)."
+	}
+
+	# Make sure the NuGet provider and the content prep module are available
+	if (-not (Get-Module -ListAvailable -Name SvRooij.ContentPrep.Cmdlet | Where-Object { $_.Version -ge [version]'0.4.0' })) {
+		$minimumNuGet = [version]'2.8.5.201'
+		$provider = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue |
+			Sort-Object Version -Descending |
+			Select-Object -First 1
+		if (-not $provider -or $provider.Version -lt $minimumNuGet) {
+			Write-Verbose "Installing NuGet package provider $minimumNuGet or later"
+			Install-PackageProvider -Name NuGet -MinimumVersion $minimumNuGet -Force | Out-Null
+		}
+		Write-Verbose 'Installing SvRooij.ContentPrep.Cmdlet module'
+		Install-Module SvRooij.ContentPrep.Cmdlet -MinimumVersion 0.4.0 -Scope CurrentUser -Force
+	}
+	Import-Module SvRooij.ContentPrep.Cmdlet -MinimumVersion 0.4.0 -ErrorAction Stop
+
+	if (-not (Test-Path -LiteralPath $DestinationPath)) {
+		New-Item -Path $DestinationPath -ItemType Directory -Force | Out-Null
+	}
+	$packagePath = Join-Path $DestinationPath ([System.IO.Path]::GetFileNameWithoutExtension($SetupFile) + '.intunewin')
+	if (Test-Path -LiteralPath $packagePath) {
+		Remove-Item -LiteralPath $packagePath -Force
+	}
+	New-IntuneWinPackage -SourcePath $SourcePath -SetupFile $SetupFile -DestinationPath $DestinationPath -ErrorAction Stop | Out-Null
+	if (-not (Test-Path -LiteralPath $packagePath)) {
+		throw "The package was not created: $packagePath"
+	}
+	return $packagePath
 }
 
 
@@ -907,5 +973,6 @@ Export-ModuleMember -Function @(
 	'ConvertTo-ABLiteral'
 	'Get-ABRunnerScript'
 	'New-ABOutput'
+	'New-ABIntuneWinPackage'
 	'ConvertFrom-ABLegacyConfig'
 )

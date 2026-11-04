@@ -9,8 +9,9 @@ file that can be tweaked by hand and loaded again later.
 
 "Generate output" creates a folder containing the AutopilotBranding module, the files referenced by the
 configuration (Assets), the configuration itself, and AutopilotBranding.ps1, a script that loads the module and
-calls each enabled task with the configured parameters.  That folder can be packaged as an Intune Win32 app
-(see makeapp.ps1).
+calls each enabled task with the configured parameters.  If "Create .intunewin package" is checked, that folder
+is also packaged as an Intune Win32 app (AutopilotBranding.intunewin, created next to the output folder) using the
+SvRooij.ContentPrep.Cmdlet module, which is installed from the PowerShell Gallery if needed.
 
 Requires Windows (WPF); works with Windows PowerShell 5.1 and PowerShell 7.
 
@@ -79,6 +80,8 @@ $State = @{
     <Border DockPanel.Dock="Bottom" Padding="8" BorderThickness="0,1,0,0" BorderBrush="#DDDDDD">
       <DockPanel>
         <Button x:Name="GenerateButton" DockPanel.Dock="Right" Content="Generate output" Padding="14,4" Margin="8,0,0,0" FontWeight="SemiBold"/>
+        <CheckBox x:Name="PackageCheckBox" DockPanel.Dock="Right" Content="Create .intunewin package" VerticalAlignment="Center" Margin="12,0,0,0"
+                  ToolTip="Also package the output folder as AutopilotBranding.intunewin, created in the output folder's parent folder"/>
         <Button x:Name="BrowseOutputButton" DockPanel.Dock="Right" Content="Browse..." Padding="8,2" Margin="4,0,0,0"/>
         <TextBlock DockPanel.Dock="Left" Text="Output folder:" VerticalAlignment="Center" Margin="0,0,8,0"/>
         <TextBox x:Name="OutputPathBox" VerticalContentAlignment="Center"/>
@@ -110,7 +113,7 @@ $State = @{
 $window = [System.Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
 $ui = @{}
 foreach ($name in 'NewButton', 'OpenButton', 'SaveButton', 'SaveAsButton', 'ImportButton', 'ValidateButton', 'StatusText',
-	'GenerateButton', 'BrowseOutputButton', 'OutputPathBox', 'NoneButton', 'AllButton', 'TaskList', 'DetailPanel') {
+	'GenerateButton', 'PackageCheckBox', 'BrowseOutputButton', 'OutputPathBox', 'NoneButton', 'AllButton', 'TaskList', 'DetailPanel') {
 	$ui[$name] = $window.FindName($name)
 }
 $ui.OutputPathBox.Text = $OutputPath
@@ -667,17 +670,40 @@ $ui.GenerateButton.Add_Click({
 				if ($answer -ne 'Yes') { return }
 			}
 
+			$createPackage = [bool]$ui.PackageCheckBox.IsChecked
+			$packageFolder = Split-Path -Path ([System.IO.Path]::GetFullPath($output)) -Parent
+			if ($createPackage -and -not $packageFolder) {
+				throw 'The output folder must not be the root of a drive when creating a .intunewin package.'
+			}
+
 			$window.Cursor = [System.Windows.Input.Cursors]::Wait
+			$intunewin = $null
 			try {
+				$ui.StatusText.Text = 'Generating output...'
 				$result = New-ABOutput -Configuration $State.Configuration -BasePath (Get-BasePath) -OutputPath $output -Force
+				if ($createPackage) {
+					$ui.StatusText.Text = 'Creating .intunewin package...'
+					$intunewin = New-ABIntuneWinPackage -SourcePath $result.OutputPath -DestinationPath $packageFolder -SetupFile (Split-Path $result.RunnerScript -Leaf)
+				}
 			}
 			finally {
 				$window.Cursor = $null
 			}
-			$ui.StatusText.Text = "Output generated in $($result.OutputPath)"
-			$answer = [System.Windows.MessageBox]::Show($window, "Output generated in $($result.OutputPath) ($($result.EnabledTasks.Count) tasks).`r`n`r`nOpen the folder?", 'Generate output', 'YesNo', 'Information')
+
+			$message = "Output generated in $($result.OutputPath) ($($result.EnabledTasks.Count) tasks)."
+			if ($intunewin) {
+				$message += "`r`n`r`nIntune package created: $intunewin"
+				$ui.StatusText.Text = "Output generated in $($result.OutputPath); package created: $intunewin"
+			} else {
+				$ui.StatusText.Text = "Output generated in $($result.OutputPath)"
+			}
+			$answer = [System.Windows.MessageBox]::Show($window, "$message`r`n`r`nOpen the folder?", 'Generate output', 'YesNo', 'Information')
 			if ($answer -eq 'Yes') {
-				Start-Process explorer.exe -ArgumentList "`"$($result.OutputPath)`""
+				if ($intunewin) {
+					Start-Process explorer.exe -ArgumentList "/select,`"$intunewin`""
+				} else {
+					Start-Process explorer.exe -ArgumentList "`"$($result.OutputPath)`""
+				}
 			}
 		}
 	})

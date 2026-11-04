@@ -10,19 +10,19 @@ Starting with v4, the old single `AutopilotBranding.ps1` script and its `Config.
   `.ps1` file, and its settings are passed as parameters instead of being read from a configuration file.
 - **A builder UI** (`Show-AutopilotBrandingBuilder.ps1`). It lists every task with the parameters it supports. You
   pick the tasks to run and set the parameter values, then save your choices to a JSON file. It also generates the
-  output folder that you package for Intune.
-- **A headless builder** (`Build-AutopilotBranding.ps1`). It generates the same output folder from a JSON file
-  without the UI. This is useful for CI and for `makeapp.cmd`.
+  output folder and, optionally, packages it as an Intune Win32 app (`.intunewin`).
+- **A headless builder** (`Build-AutopilotBranding.ps1`). It does the same from a JSON file without the UI. This
+  is useful for CI and for `makeapp.cmd`.
 
 ## Repository layout
 
 ```
 AutopilotBranding.json            Default configuration (equivalent to the v3 Config.xml defaults)
 Show-AutopilotBrandingBuilder.ps1 Builder UI (Windows, WPF)
-Build-AutopilotBranding.ps1       Headless builder
-makeapp.cmd / makeapp.ps1         Build the Output folder and package it as AutopilotBranding.intunewin
+Build-AutopilotBranding.ps1       Headless builder (output folder and, with -Package, the .intunewin)
+makeapp.cmd                       Runs the headless builder on AutopilotBranding.json, with -Package
 Assets\                           Sample files used by the default configuration (theme, wallpaper, layouts, ...)
-Builder\                          Builder module (task discovery, JSON handling, output generation)
+Builder\                          Builder module (task discovery, JSON handling, output generation, packaging)
 Module\AutopilotBranding\
     AutopilotBranding.psd1/.psm1  Module manifest and loader
     Private\Common.ps1            Shared helpers (default user hive, registry, downloads, OOBE check, ...)
@@ -86,7 +86,8 @@ Each cmdlet has comment-based help (`Get-Help Set-ABTheme -Full`). The builder U
    parameters, then enter the values: check boxes for on/off settings, drop-down lists for fixed choices, one value
    per line for lists, and **Browse...** for files and folders.
 3. **Save** / **Save As...** writes your choices to a JSON file.
-4. Choose an output folder and click **Generate output**.
+4. Choose an output folder and click **Generate output**. Check **Create .intunewin package** to also package the
+   output as `AutopilotBranding.intunewin`, which is created in the output folder's parent folder.
 
 ## The JSON configuration
 
@@ -148,14 +149,21 @@ the script.
 
 ## Building the Intune app
 
-Run `makeapp.cmd` from a command prompt. (It will not work if you are using Terminal.) It runs
-`Build-AutopilotBranding.ps1` to generate `.\Output` from `AutopilotBranding.json`, then packages that folder into
-`AutopilotBranding.intunewin` using the SvRooij.ContentPrep.Cmdlet module. To package your own configuration,
-point it at your JSON file, or generate the output with the UI and run:
+Packaging uses `New-IntuneWinPackage` from the SvRooij.ContentPrep.Cmdlet module. The module, and the NuGet
+package provider it needs, are installed for the current user from the PowerShell Gallery the first time you
+package. You can package in any of these ways:
 
-```powershell
-.\makeapp.ps1 -SourceFolder <output folder> -SetupFile AutopilotBranding.ps1
-```
+- In the UI, check **Create .intunewin package** before clicking **Generate output**.
+- From PowerShell:
+
+  ```powershell
+  .\Build-AutopilotBranding.ps1 -ConfigPath .\MyConfig.json -OutputPath .\Output -Package -PackagePath .
+  ```
+
+- Run `makeapp.cmd` from a command prompt. (It will not work if you are using Terminal.) It builds `.\Output` from
+  `AutopilotBranding.json` and creates `AutopilotBranding.intunewin` in the repository folder.
+
+`makeapp.ps1` has been removed; its logic is now `New-ABIntuneWinPackage` in the builder module.
 
 ## Using
 

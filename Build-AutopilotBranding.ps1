@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-Generates the Autopilot Branding output folder from a JSON configuration (no UI).
+Generates the Autopilot Branding output folder from a JSON configuration (no UI), and optionally packages it as
+an Intune Win32 app (.intunewin).
 
 .DESCRIPTION
 Reads the configuration file, validates it, and creates an output folder containing:
@@ -8,6 +9,9 @@ Reads the configuration file, validates it, and creates an output folder contain
   AutopilotBranding\       - the AutopilotBranding module
   Assets\                  - files and folders referenced by the configuration
   AutopilotBranding.json   - the configuration used
+
+With -Package, the output folder is then packaged as AutopilotBranding.intunewin (using the
+SvRooij.ContentPrep.Cmdlet module, which is installed from the PowerShell Gallery if needed).
 
 Use Show-AutopilotBrandingBuilder.ps1 to edit the configuration interactively.
 
@@ -17,11 +21,21 @@ JSON configuration file.  Relative file and folder paths in it are relative to t
 .PARAMETER OutputPath
 Output folder.  Its existing contents are replaced.
 
+.PARAMETER Package
+Also package the output folder as an Intune Win32 app (AutopilotBranding.intunewin).
+
+.PARAMETER PackagePath
+Folder where the .intunewin file is created (default: the folder containing this script).  It must not be inside
+the output folder.
+
 .PARAMETER LegacyConfigXml
 Convert a v3 Config.xml file into a JSON configuration (saved to ConfigPath) instead of building.
 
 .EXAMPLE
 .\Build-AutopilotBranding.ps1 -ConfigPath .\AutopilotBranding.json -OutputPath .\Output
+
+.EXAMPLE
+.\Build-AutopilotBranding.ps1 -ConfigPath .\AutopilotBranding.json -OutputPath .\Output -Package -PackagePath .
 
 .EXAMPLE
 .\Build-AutopilotBranding.ps1 -LegacyConfigXml C:\Old\AutopilotBranding\Config.xml -ConfigPath .\MyConfig.json
@@ -30,6 +44,8 @@ Convert a v3 Config.xml file into a JSON configuration (saved to ConfigPath) ins
 param (
 	[Parameter(Mandatory = $false)] [string] $ConfigPath = (Join-Path $PSScriptRoot 'AutopilotBranding.json'),
 	[Parameter(Mandatory = $false)] [string] $OutputPath = (Join-Path $PSScriptRoot 'Output'),
+	[Parameter(Mandatory = $false)] [switch] $Package,
+	[Parameter(Mandatory = $false)] [string] $PackagePath = $PSScriptRoot,
 	[Parameter(Mandatory = $false)] [string] $LegacyConfigXml
 )
 
@@ -50,3 +66,8 @@ $result = New-ABOutput -Configuration $configuration -BasePath (Split-Path $Conf
 Write-Host "Output created in $($result.OutputPath)"
 Write-Host "Runner script:    $($result.RunnerScript)"
 Write-Host "Enabled tasks:    $($result.EnabledTasks.Count)"
+
+if ($Package) {
+	$intunewin = New-ABIntuneWinPackage -SourcePath $result.OutputPath -DestinationPath $PackagePath -SetupFile (Split-Path $result.RunnerScript -Leaf)
+	Write-Host "Intune package:   $intunewin"
+}
