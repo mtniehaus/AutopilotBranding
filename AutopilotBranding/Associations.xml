@@ -37,6 +37,4 @@
   <Association Identifier=".wdp" ProgId="AppX43hnxtbyyps62jhe9sqpdzxn1790zetc" ApplicationName="Photos" />
   <Association Identifier=".website" ProgId="IE.AssocFile.WEBSITE" ApplicationName="Internet Explorer" />
   <Association Identifier="bingmaps" ProgId="AppXp9gkwccvk6fa6yyfq3tmsk8ws2nprk1p" ApplicationName="Maps" />
-  <Association Identifier="http" ProgId="IE.HTTP" ApplicationName="Internet Explorer" />
-  <Association Identifier="https" ProgId="IE.HTTPS" ApplicationName="Internet Explorer" />
 </DefaultAssociations>

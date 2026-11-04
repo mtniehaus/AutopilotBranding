@@ -22,6 +22,9 @@
   <SkipSetSearchIcon>false</SkipSetSearchIcon>
   <!-- Settings for various items-->
   <TimeZone></TimeZone>
+  <!-- Optional: rename the computer. %SERIAL% is replaced with the BIOS serial number; the result is truncated to 15 characters.
+       Leave empty to keep the name from the Autopilot profile. Don't use with hybrid Entra join. Example: <ComputerName>PC-%SERIAL%</ComputerName> -->
+  <ComputerName></ComputerName>
   <RemoveApps>
     <App>Clipchamp.Clipchamp</App>
     <App>Microsoft.BingNews</App>
@@ -70,6 +73,7 @@
   <OneDriveSetup>https://go.microsoft.com/fwlink/?linkid=844652</OneDriveSetup>
   <OneDriveARMSetup>https://go.microsoft.com/fwlink/?linkid=2282608</OneDriveARMSetup>
   <EdgeBusinessMSI>https://go.microsoft.com/fwlink/?LinkID=2093437</EdgeBusinessMSI>
+  <!-- ARM64 devices only use this MSI (the x64 MSI breaks Edge/WebView2 on ARM64). Leave empty to skip the Edge update on ARM64. -->
   <EdgeBusinessARM></EdgeBusinessARM>
   <AddFeatures>
     <Feature>Microsoft.Windows.Sense.Client~~~~</Feature>
@@ -100,6 +104,14 @@
   </RemoveCapability>
   <Language></Language>
   <!-- If you want to set a language, customize and reference this file: <Language>Language.xml</Language> -->
+  <!-- Alternatively (Windows 11), install and configure a language from Windows Update using PowerShell. Leave Language empty to skip.
+       Locale defaults to Language if not specified. GeoId is the home location, see https://learn.microsoft.com/windows/win32/intl/table-of-geographical-locations
+  <LanguageSettings>
+    <Language>en-GB</Language>
+    <Locale>en-GB</Locale>
+    <GeoId>242</GeoId>
+  </LanguageSettings>
+  -->
   <DefaultApps>Associations.xml</DefaultApps>
   <RegisteredOwner>Autopilot User</RegisteredOwner>
   <RegisteredOrganization>Contoso</RegisteredOrganization>
