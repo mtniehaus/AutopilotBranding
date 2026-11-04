@@ -6,11 +6,17 @@ on:
   pull_request:
     branches: [ "main", "dev" ]
 
+# A new push cancels the previous run for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
 
   build:
 
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
     - name: Checkout
@@ -41,13 +47,19 @@ jobs:
         & $exe -NoProfile -Command '"Installed PowerShell $($PSVersionTable.PSVersion)"'
         "PWSH76=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+    - name: Disable the Windows PowerShell Update-Help prompt
+      shell: cmd
+      run: reg add HKLM\SOFTWARE\Microsoft\PowerShell /v DisablePromptToUpdateHelp /t REG_DWORD /d 1 /f
+
     - name: Test with Windows PowerShell 5.1
       shell: cmd
-      run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File Tests\Test-AutopilotBranding.ps1
+      timeout-minutes: 15
+      run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File Tests\Test-AutopilotBranding.ps1
 
     - name: Test with PowerShell 7.6
       shell: cmd
-      run: '"%PWSH76%" -NoProfile -ExecutionPolicy Bypass -File Tests\Test-AutopilotBranding.ps1'
+      timeout-minutes: 15
+      run: '"%PWSH76%" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File Tests\Test-AutopilotBranding.ps1'
 
     - name: Create Intune app
       shell: cmd

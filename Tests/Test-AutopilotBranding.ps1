@@ -4,8 +4,8 @@ Automated tests for the AutopilotBranding module, builder, builder UI, generated
 
 .DESCRIPTION
 Run this with each PowerShell version to verify, for example:
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
-  pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
+  powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
+  pwsh.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
 
 The tests run on Windows.  They create the Output folder and AutopilotBranding.intunewin in the repository folder
 (via makeapp.cmd) and a temporary folder, install the SvRooij.ContentPrep.Cmdlet module for the current user if
@@ -41,6 +41,7 @@ function Test-Case {
 		[Parameter(Mandatory = $true)] [string] $Name,
 		[Parameter(Mandatory = $true)] [scriptblock] $Test
 	)
+	Write-Host "[....] $Name" -ForegroundColor DarkGray
 	try {
 		& $Test
 		$script:passed++

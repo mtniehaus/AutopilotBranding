@@ -228,8 +228,8 @@ without being shown), the generated runner script, packaging, and the `.cmd` lau
 version you use:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
-pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
+pwsh.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
 ```
 
 The GitHub workflow runs it with Windows PowerShell 5.1 and PowerShell 7.6 before building the app.
