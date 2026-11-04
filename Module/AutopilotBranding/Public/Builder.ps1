@@ -1,4 +1,4 @@
-# Builder functions: used by Show-AutopilotBrandingBuilder (UI) and Build-AutopilotBranding (headless) to
+# Builder functions: used by Show-AutopilotBrandingBuilder (UI) and New-AutopilotBrandingPackage (headless) to
 #   - discover the configuration tasks (cmdlets) and their parameters from the module's Tasks folder
 #   - load, complete, validate and save JSON configuration files
 #   - convert a legacy (v3) Config.xml file into a JSON configuration

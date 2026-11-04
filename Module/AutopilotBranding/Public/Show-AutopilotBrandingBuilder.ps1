@@ -34,7 +34,7 @@ function Show-AutopilotBrandingBuilder {
 	)
 
 	if ($PSVersionTable.PSEdition -ne 'Desktop' -and -not $IsWindows) {
-		throw 'The Autopilot Branding builder UI requires Windows.  Use Build-AutopilotBranding to build from a JSON file on other platforms.'
+		throw 'The Autopilot Branding builder UI requires Windows.  Use New-AutopilotBrandingPackage (alias Build-AutopilotBranding) to build from a JSON file on other platforms.'
 	}
 
 	if (-not $ConfigPath) {

@@ -2,7 +2,8 @@
 #
 #   Private\*.ps1  - helper functions (not exported): shared task helpers, builder helpers, builder UI
 #   Public\*.ps1   - exported functions: the run framework used by the generated runner script, the builder
-#                    functions, and the Show-AutopilotBrandingBuilder / Build-AutopilotBranding cmdlets
+#                    functions, and the Show-AutopilotBrandingBuilder / New-AutopilotBrandingPackage cmdlets
+#                    (with its Build-AutopilotBranding alias)
 #   Tasks\*.ps1    - one configuration task (cmdlet) per file (exported)
 #
 # Task files are named "<order>-<Verb>-AB<Noun>.ps1".  The numeric prefix defines the order in
@@ -33,7 +34,7 @@ $taskFunctions = @(foreach ($file in (Get-ChildItem -Path (Join-Path $PSScriptRo
 		if ($file.BaseName -match '^\d+-(.+)$') { $Matches[1] } else { $file.BaseName }
 	})
 
-Export-ModuleMember -Function ($publicFunctions + $taskFunctions)
+Export-ModuleMember -Function ($publicFunctions + $taskFunctions) -Alias 'Build-AutopilotBranding'
 
 # Don't leave the loader's variables in the module scope, where functions could pick them up by accident
 Remove-Variable -Name folder, path, file, ast, statement, publicFunctions, taskFunctions -ErrorAction SilentlyContinue

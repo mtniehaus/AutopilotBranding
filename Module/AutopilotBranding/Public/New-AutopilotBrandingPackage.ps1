@@ -1,4 +1,4 @@
-function Build-AutopilotBranding {
+function New-AutopilotBrandingPackage {
 	<#
 	.SYNOPSIS
 	Generates the Autopilot Branding output folder from a JSON configuration (no UI) and packages it as an Intune
@@ -15,6 +15,9 @@ function Build-AutopilotBranding {
 	which is installed from the PowerShell Gallery if needed).
 
 	Use Show-AutopilotBrandingBuilder to edit the configuration interactively.
+
+	Build-AutopilotBranding is an alias for this cmdlet.  (Build isn't an approved verb in Windows PowerShell 5.1, so
+	the cmdlet itself uses New to avoid a warning when the module is imported.)
 
 	.PARAMETER ConfigPath
 	JSON configuration file.  Relative file and folder paths in it are relative to the file's folder.  Defaults to
@@ -35,15 +38,17 @@ function Build-AutopilotBranding {
 	Return an object describing the output folder, runner script and package.
 
 	.EXAMPLE
-	Build-AutopilotBranding -ConfigPath .\AutopilotBranding.json -OutputPath .\Output
+	New-AutopilotBrandingPackage -ConfigPath .\AutopilotBranding.json -OutputPath .\Output
 
 	Creates .\Output and .\AutopilotBranding.intunewin.
 
 	.EXAMPLE
 	Build-AutopilotBranding -ConfigPath .\MyConfig.json -OutputPath C:\Build\Output -PackagePath C:\Build\Packages
 
+	Uses the Build-AutopilotBranding alias.
+
 	.EXAMPLE
-	Build-AutopilotBranding -LegacyConfigXml C:\Old\AutopilotBranding\Config.xml -ConfigPath .\MyConfig.json
+	New-AutopilotBrandingPackage -LegacyConfigXml C:\Old\AutopilotBranding\Config.xml -ConfigPath .\MyConfig.json
 	#>
 	[CmdletBinding()]
 	param (
@@ -101,3 +106,7 @@ function Build-AutopilotBranding {
 		}
 	}
 }
+
+# Build isn't an approved verb in Windows PowerShell 5.1 (it is in PowerShell 7), so the cmdlet uses New and the
+# Build-AutopilotBranding name is provided as an alias.
+Set-Alias -Name Build-AutopilotBranding -Value New-AutopilotBrandingPackage

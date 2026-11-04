@@ -122,7 +122,7 @@ $taskNames = @($taskFiles | ForEach-Object { $_.BaseName -replace '^\d+-', '' })
 
 Test-Case 'Exports the cmdlets, tasks and builder functions, and nothing private' {
 	$exported = @((Get-Command -Module AutopilotBranding).Name)
-	$expected = @('Show-AutopilotBrandingBuilder', 'Build-AutopilotBranding', 'Start-AutopilotBranding', 'Stop-AutopilotBranding',
+	$expected = @('Show-AutopilotBrandingBuilder', 'New-AutopilotBrandingPackage', 'Build-AutopilotBranding', 'Start-AutopilotBranding', 'Stop-AutopilotBranding',
 		'Invoke-ABTask', 'Write-ABLog', 'Mount-ABDefaultUserHive', 'Dismount-ABDefaultUserHive', 'Get-ABTaskDefinition',
 		'Read-ABConfiguration', 'Save-ABConfiguration', 'Test-ABConfiguration', 'New-ABOutput', 'New-ABIntuneWinPackage',
 		'ConvertFrom-ABLegacyConfig') + $taskNames
@@ -225,10 +225,11 @@ Test-Case 'Runner script only passes non-default values and parses' {
 }
 
 $build = $null
-Test-Case 'Build-AutopilotBranding creates the output folder and .intunewin package' {
+Test-Case 'Build-AutopilotBranding (alias) creates the output folder and .intunewin package' {
+	Assert-Equal 'New-AutopilotBrandingPackage' (Get-Alias Build-AutopilotBranding).Definition 'Alias target'
 	$script:build = Build-AutopilotBranding -ConfigPath $defaultConfig -OutputPath (Join-Path $temp 'Output') -PassThru 6>$null
 	foreach ($relative in 'AutopilotBranding.ps1', 'AutopilotBranding.json', 'AutopilotBranding\AutopilotBranding.psd1',
-		'AutopilotBranding\Tasks\030-Set-ABTheme.ps1', 'Assets\Autopilot.theme', 'Assets\start2.bin', 'Assets\LPs') {
+		'AutopilotBranding\Tasks\030-Set-ABTheme.ps1', 'Assets\Autopilot.theme', 'Assets\start2.bin', 'Assets\Contoso.bmp') {
 		Assert-True (Test-Path (Join-Path $script:build.OutputPath $relative)) "Missing $relative"
 	}
 	Assert-Equal (Join-Path $temp 'AutopilotBranding.intunewin') $script:build.Package 'Package path'

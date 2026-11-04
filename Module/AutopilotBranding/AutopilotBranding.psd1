@@ -13,7 +13,7 @@
 	FunctionsToExport    = '*'
 	CmdletsToExport      = @()
 	VariablesToExport    = @()
-	AliasesToExport      = @()
+	AliasesToExport      = @('Build-AutopilotBranding')
 
 	PrivateData          = @{
 		PSData = @{

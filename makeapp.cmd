@@ -1,6 +1,7 @@
 @echo off
 setlocal
-rem Builds the Intune app: loads the AutopilotBranding module from this folder and runs Build-AutopilotBranding,
+rem Builds the Intune app: loads the AutopilotBranding module from this folder and runs Build-AutopilotBranding
+rem (alias for New-AutopilotBrandingPackage),
 rem which generates the Output folder (module, assets, runner script) from AutopilotBranding.json and packages it
 rem as AutopilotBranding.intunewin in this folder.
 rem Uses PowerShell 7 (pwsh.exe) if it is installed, otherwise Windows PowerShell 5.1 (powershell.exe).

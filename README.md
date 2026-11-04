@@ -11,10 +11,12 @@ Starting with v4, the old single `AutopilotBranding.ps1` script and its `Config.
 - **A builder UI** (the `Show-AutopilotBrandingBuilder` cmdlet, started by `ShowBuilder.cmd`). It lists every
   task with the parameters it supports. You pick the tasks to run and set the parameter values, then save your
   choices to a JSON file. It also generates the output folder and packages it as an Intune Win32 app (`.intunewin`).
-- **A headless builder** (the `Build-AutopilotBranding` cmdlet, run by `makeapp.cmd`). It does the same from a JSON
+- **A headless builder** (the `New-AutopilotBrandingPackage` cmdlet, also available as `Build-AutopilotBranding`,
+  run by `makeapp.cmd`). It does the same from a JSON
   file without the UI, which is useful for CI.
 
-Both cmdlets are part of the module, and everything works with Windows PowerShell 5.1 and PowerShell 7 (the tests
+`Build-AutopilotBranding` is an alias: Build isn't an approved verb in Windows PowerShell 5.1, which would warn on
+every import if the cmdlet used it. Both cmdlets are part of the module, and everything works with Windows PowerShell 5.1 and PowerShell 7 (the tests
 run with 5.1 and 7.6).
 
 ## Repository layout
@@ -27,7 +29,7 @@ Assets\                           Sample files used by the default configuration
 Tests\Test-AutopilotBranding.ps1  Automated tests (run with each PowerShell version)
 Module\AutopilotBranding\
     AutopilotBranding.psd1/.psm1  Module manifest and loader
-    Public\Show-AutopilotBrandingBuilder.ps1, Build-AutopilotBranding.ps1
+    Public\Show-AutopilotBrandingBuilder.ps1, New-AutopilotBrandingPackage.ps1
                                   The builder UI and headless builder cmdlets
     Public\Builder.ps1            Builder functions (task discovery, JSON handling, output generation, packaging)
     Public\Session.ps1            Run framework (Start-/Stop-AutopilotBranding, Invoke-ABTask, Write-ABLog, ...)
