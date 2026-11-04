@@ -44,10 +44,20 @@ function Invoke-Safely {
 }
 
 function Get-BasePath {
+	# Folder that relative paths in the configuration are relative to: the configuration file's folder, or the
+	# module's project template for a configuration that hasn't been saved yet
 	if ($State.ConfigPath) {
 		return (Split-Path -Path $State.ConfigPath -Parent)
 	}
-	return (Split-Path -Path (Get-ABDefaultConfigurationPath) -Parent)
+	return (Get-ABTemplatePath)
+}
+
+function Get-DialogFolder {
+	# Initial folder for file dialogs: the configuration's folder, or Documents (never the module's template folder)
+	if ($State.ConfigPath) {
+		return (Split-Path -Path $State.ConfigPath -Parent)
+	}
+	return [Environment]::GetFolderPath('MyDocuments')
 }
 
 function Get-TaskDefinition([string] $TaskName) {
@@ -71,14 +81,15 @@ function Set-Dirty([bool] $Dirty = $true) {
 }
 
 function Update-Title {
-	$name = if ($State.ConfigPath) { Split-Path -Path $State.ConfigPath -Leaf } else { '(new configuration)' }
+	$name = if ($State.ConfigPath) { $State.ConfigPath } else { '(not saved yet - save to create a project folder)' }
 	$marker = if ($State.Dirty) { ' *' } else { '' }
 	$window.Title = "Autopilot Branding Builder - $name$marker"
 }
 
 function Update-Status {
 	$enabled = @($State.Definitions | Where-Object { $State.Configuration.Tasks[$_.Name].Enabled }).Count
-	$ui.StatusText.Text = "$enabled of $($State.Definitions.Count) tasks enabled.  Paths are relative to $(Get-BasePath)"
+	$relativeTo = if ($State.ConfigPath) { Get-BasePath } else { 'the default template' }
+	$ui.StatusText.Text = "$enabled of $($State.Definitions.Count) tasks enabled.  Paths are relative to $relativeTo"
 }
 
 function Set-TaskEnabled([string] $TaskName, [bool] $Enabled) {
@@ -128,21 +139,6 @@ function Confirm-Discard {
 	}
 }
 
-function Update-AssetBasePath([string] $OldBase, [string] $NewBase) {
-	# Keep file and folder parameters pointing at the same files when the configuration moves to another folder
-	foreach ($definition in $State.Definitions) {
-		$entry = $State.Configuration.Tasks[$definition.Name]
-		foreach ($p in ($definition.Parameters | Where-Object { $_.AssetKind })) {
-			$value = $entry.Parameters[$p.Name]
-			if ([string]::IsNullOrWhiteSpace($value)) {
-				continue
-			}
-			$full = Resolve-ABAssetPath -Path $value -BasePath $OldBase
-			$entry.Parameters[$p.Name] = Get-ABRelativePath -Path $full -BasePath $NewBase
-		}
-	}
-}
-
 #endregion
 
 
@@ -151,6 +147,8 @@ function Update-AssetBasePath([string] $OldBase, [string] $NewBase) {
 function Set-Configuration($Configuration, [string] $Path) {
 	$State.Configuration = $Configuration
 	$State.ConfigPath = $Path
+	# Generate into the configuration's (project's) Output folder by default
+	$ui.OutputPathBox.Text = if ($Path) { Join-Path (Split-Path -Path $Path -Parent) 'Output' } else { '' }
 	$State.Dirty = $false
 	Show-TaskList
 	Update-Title
@@ -159,7 +157,8 @@ function Set-Configuration($Configuration, [string] $Path) {
 
 function Save-Configuration([switch] $SaveAs, [string] $Path) {
 	# Saves to -Path if specified (e.g. by the tests), otherwise to the current file or a file chosen in a dialog.
-	# File and folder parameters are rebased when the configuration moves to another folder.
+	# When the configuration moves to another folder, template files it uses are copied there (so saving the default
+	# template creates a project) and other file and folder parameters are rebased.
 	if (-not $Path) {
 		$Path = $State.ConfigPath
 	} else {
@@ -170,20 +169,29 @@ function Save-Configuration([switch] $SaveAs, [string] $Path) {
 		$dialog.Filter = 'JSON configuration (*.json)|*.json|All files (*.*)|*.*'
 		$dialog.DefaultExt = '.json'
 		$dialog.FileName = if ($path) { Split-Path $path -Leaf } else { 'AutopilotBranding.json' }
-		$dialog.InitialDirectory = Get-BasePath
+		$dialog.InitialDirectory = Get-DialogFolder
+		$dialog.Title = if ($State.ConfigPath) { 'Save the configuration' } else { 'Save the configuration in a project folder (the files it uses are copied there)' }
 		if (-not $dialog.ShowDialog($window)) {
 			return $false
 		}
 		$path = $dialog.FileName
 	}
 
+	$path = ConvertTo-ABFullPath $path
 	$oldBase = Get-BasePath
 	$newBase = Split-Path -Path $path -Parent
+	if (Test-ABPathUnder -Path $newBase -Folder (Get-ABTemplatePath)) {
+		throw "Don't save into the module's template folder; choose a project folder instead."
+	}
+	$oldOutput = $ui.OutputPathBox.Text
 	if ($oldBase -ne $newBase) {
-		Update-AssetBasePath -OldBase $oldBase -NewBase $newBase
+		Update-ABAssetBase -Configuration $State.Configuration -TaskDefinitions $State.Definitions -OldBase $oldBase -NewBase $newBase
 	}
 	Save-ABConfiguration -Configuration $State.Configuration -Path $path
 	$State.ConfigPath = $path
+	if (-not $oldOutput -or $oldOutput -eq (Join-Path $oldBase 'Output')) {
+		$ui.OutputPathBox.Text = Join-Path $newBase 'Output'
+	}
 	Set-Dirty $false
 	Update-Status
 	if ($State.SelectedTask) {
@@ -521,6 +529,7 @@ function Initialize-ABBuilderWindow {
   <DockPanel>
     <ToolBarTray DockPanel.Dock="Top">
       <ToolBar>
+        <Button x:Name="NewProjectButton" Content="New project..." Padding="8,2" ToolTip="Create a project folder from the default template (configuration and sample files) and open it"/>
         <Button x:Name="NewButton" Content="New" Padding="8,2" ToolTip="Start a new configuration with all tasks disabled"/>
         <Button x:Name="OpenButton" Content="Open..." Padding="8,2" ToolTip="Open a JSON configuration file"/>
         <Button x:Name="SaveButton" Content="Save" Padding="8,2" ToolTip="Save the configuration"/>
@@ -570,7 +579,7 @@ function Initialize-ABBuilderWindow {
 
 	$script:window = [System.Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
 	$script:ui = @{}
-	foreach ($name in 'NewButton', 'OpenButton', 'SaveButton', 'SaveAsButton', 'ImportButton', 'ValidateButton', 'StatusText',
+	foreach ($name in 'NewProjectButton', 'NewButton', 'OpenButton', 'SaveButton', 'SaveAsButton', 'ImportButton', 'ValidateButton', 'StatusText',
 		'GenerateButton', 'BrowseOutputButton', 'OutputPathBox', 'NoneButton', 'AllButton', 'TaskList', 'DetailPanel') {
 		$ui[$name] = $window.FindName($name)
 	}
@@ -595,6 +604,25 @@ function Initialize-ABBuilderWindow {
 			foreach ($definition in $State.Definitions) { Set-TaskEnabled -TaskName $definition.Name -Enabled $false }
 		})
 
+	$ui.NewProjectButton.Add_Click({
+			Invoke-Safely {
+				if (-not (Confirm-Discard)) { return }
+				$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+				$dialog.Description = 'Select or create the project folder (the default configuration and sample files are copied there)'
+				$dialog.SelectedPath = Get-DialogFolder
+				if ($dialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { return }
+				$project = $dialog.SelectedPath
+				$configPath = Join-Path $project 'AutopilotBranding.json'
+				if (Test-Path -LiteralPath $configPath) {
+					Show-ABUIMessage -Text "$project already contains a project; opening it." -Caption 'New project' | Out-Null
+				} else {
+					New-AutopilotBrandingProject -Path $project | Out-Null
+				}
+				Set-Configuration -Configuration (Read-ABConfiguration -Path $configPath -TaskDefinitions $State.Definitions) -Path $configPath
+				$ui.StatusText.Text = "Opened project $project"
+			}
+		})
+
 	$ui.NewButton.Add_Click({
 			Invoke-Safely {
 				if (-not (Confirm-Discard)) { return }
@@ -609,7 +637,7 @@ function Initialize-ABBuilderWindow {
 				if (-not (Confirm-Discard)) { return }
 				$dialog = New-Object Microsoft.Win32.OpenFileDialog
 				$dialog.Filter = 'JSON configuration (*.json)|*.json|All files (*.*)|*.*'
-				$dialog.InitialDirectory = Get-BasePath
+				$dialog.InitialDirectory = Get-DialogFolder
 				if ($dialog.ShowDialog($window)) {
 					$configuration = Read-ABConfiguration -Path $dialog.FileName -TaskDefinitions $State.Definitions
 					Set-Configuration -Configuration $configuration -Path $dialog.FileName
@@ -659,6 +687,10 @@ function Initialize-ABBuilderWindow {
 
 	$ui.GenerateButton.Add_Click({
 			Invoke-Safely {
+				if (-not $State.ConfigPath) {
+					Show-ABUIMessage -Text 'Save the configuration first: saving it in a folder creates a project there (with the files the configuration uses), and the output is generated from that project.' -Caption 'Generate output' | Out-Null
+					return
+				}
 				$output = $ui.OutputPathBox.Text.Trim()
 				if (-not $output) {
 					throw 'Specify an output folder.'
@@ -680,6 +712,9 @@ function Initialize-ABBuilderWindow {
 					if ($answer -ne 'Yes') { return }
 				}
 
+				if (Test-ABPathUnder -Path (ConvertTo-ABFullPath $output) -Folder (Get-ABTemplatePath)) {
+					throw "Don't generate into the module's template folder; choose another output folder."
+				}
 				$packageFolder = Split-Path -Path (ConvertTo-ABFullPath $output) -Parent
 				if (-not $packageFolder) {
 					throw 'The output folder must not be the root of a drive (the .intunewin file is created in its parent folder).'
@@ -721,7 +756,13 @@ function Initialize-ABBuilderWindow {
 			$fullPath = (Resolve-Path $ConfigPath).Path
 			Set-Configuration -Configuration (Read-ABConfiguration -Path $fullPath -TaskDefinitions $State.Definitions) -Path $fullPath
 		} else {
-			Set-Configuration -Configuration (New-ABConfiguration -TaskDefinitions $State.Definitions) -Path $null
+			# No configuration: start from the module's default template (unsaved; saving it creates a project)
+			if ($ConfigPath) { throw "Configuration file not found: $ConfigPath" }
+			$templateConfig = Join-Path (Get-ABTemplatePath) 'AutopilotBranding.json'
+			Set-Configuration -Configuration (Read-ABConfiguration -Path $templateConfig -TaskDefinitions $State.Definitions) -Path $null
+		}
+		if ($OutputPath) {
+			$ui.OutputPathBox.Text = $OutputPath
 		}
 	}
 	catch {

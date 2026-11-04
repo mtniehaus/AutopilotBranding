@@ -7,8 +7,8 @@ Run this with each PowerShell version to verify, for example:
   powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
   pwsh.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
 
-The tests run on Windows.  They create the Output folder and AutopilotBranding.intunewin in the repository folder
-(via makeapp.cmd) and a temporary folder, install the SvRooij.ContentPrep.Cmdlet module for the current user if
+The tests run on Windows.  They create (if needed) and build the repository's Project folder (via makeapp.cmd),
+use a temporary folder, install the SvRooij.ContentPrep.Cmdlet module for the current user if
 needed, and (when running elevated) run the generated runner script, which writes its log and tag file to
 %ProgramData%\Microsoft\AutopilotBranding and exits without changing anything because OOBE has already completed.
 The builder UI is created and exercised without being shown.  ShowBuilder.cmd is started and stopped again after a
@@ -28,7 +28,8 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $repoRoot = Split-Path -Path $PSScriptRoot -Parent
 $manifest = Join-Path $repoRoot 'Module\AutopilotBranding\AutopilotBranding.psd1'
-$defaultConfig = Join-Path $repoRoot 'AutopilotBranding.json'
+$templateDir = Join-Path $repoRoot 'Module\AutopilotBranding\Template'
+$defaultConfig = Join-Path $templateDir 'AutopilotBranding.json'
 $psExe = (Get-Process -Id $PID).Path
 $temp = Join-Path ([System.IO.Path]::GetTempPath()) ("ABTest-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -Path $temp -ItemType Directory -Force | Out-Null
@@ -80,7 +81,7 @@ Write-Host ''
 Test-Case 'All PowerShell files parse without errors' {
 	$problems = @()
 	$files = Get-ChildItem -Path $repoRoot -Recurse -Include *.ps1, *.psm1, *.psd1 |
-		Where-Object { $_.FullName -notlike (Join-Path $repoRoot 'Output\*') }
+		Where-Object { $_.FullName -notlike (Join-Path $repoRoot 'Output\*') -and $_.FullName -notlike (Join-Path $repoRoot 'Project\*') }
 	foreach ($file in $files) {
 		$tokens = $null
 		$errors = $null
@@ -117,19 +118,27 @@ if (-not $module) {
 	exit 1
 }
 
+Test-Case 'Module manifest is valid (for publishing to the PowerShell Gallery)' {
+	$info = Test-ModuleManifest -Path $manifest
+	Assert-True ($info.Version -ge [version]'4.0.0') "Unexpected version $($info.Version)"
+	Assert-True ($info.ExportedAliases.ContainsKey('Build-AutopilotBranding')) 'Alias not declared in the manifest'
+	Assert-True (Test-Path (Join-Path $templateDir 'AutopilotBranding.json')) 'Template missing from the module'
+}
+
 $taskFiles = @(Get-ChildItem (Join-Path $repoRoot 'Module\AutopilotBranding\Tasks') -Filter *.ps1 | Sort-Object Name)
 $taskNames = @($taskFiles | ForEach-Object { $_.BaseName -replace '^\d+-', '' })
 
 Test-Case 'Exports the cmdlets, tasks and builder functions, and nothing private' {
 	$exported = @((Get-Command -Module AutopilotBranding).Name)
-	$expected = @('Show-AutopilotBrandingBuilder', 'New-AutopilotBrandingPackage', 'Build-AutopilotBranding', 'Start-AutopilotBranding', 'Stop-AutopilotBranding',
+	$expected = @('Show-AutopilotBrandingBuilder', 'New-AutopilotBrandingPackage', 'Build-AutopilotBranding', 'New-AutopilotBrandingProject', 'Get-ABTemplatePath', 'Start-AutopilotBranding', 'Stop-AutopilotBranding',
 		'Invoke-ABTask', 'Write-ABLog', 'Mount-ABDefaultUserHive', 'Dismount-ABDefaultUserHive', 'Get-ABTaskDefinition',
 		'Read-ABConfiguration', 'Save-ABConfiguration', 'Test-ABConfiguration', 'New-ABOutput', 'New-ABIntuneWinPackage',
 		'ConvertFrom-ABLegacyConfig') + $taskNames
 	$missing = @($expected | Where-Object { $exported -notcontains $_ })
 	Assert-True ($missing.Count -eq 0) "Not exported: $($missing -join ', ')"
 	$private = @('Get-Value', 'Get-List', 'Get-File', 'Invoke-ABHiveUnload', 'Show-ABUIMessage', 'Initialize-ABBuilderWindow',
-		'ConvertTo-ABFullPath', 'Test-ABArm64', 'Set-ABRegistryValue', 'Get-ABAstValue', 'Show-TaskDetail', 'Invoke-Safely')
+		'ConvertTo-ABFullPath', 'Test-ABArm64', 'Set-ABRegistryValue', 'Get-ABAstValue', 'Show-TaskDetail', 'Invoke-Safely',
+		'Update-ABAssetBase', 'Copy-ABItemNoOverwrite', 'Test-ABPathUnder', 'Get-DialogFolder')
 	$leaked = @($private | Where-Object { $exported -contains $_ })
 	Assert-True ($leaked.Count -eq 0) "Private functions exported: $($leaked -join ', ')"
 }
@@ -173,7 +182,7 @@ Test-Case 'Invoke-ABTask logs a failing task and keeps going' {
 Test-Case 'Default configuration is complete and valid' {
 	$configuration = Read-ABConfiguration -Path $defaultConfig
 	Assert-Equal $taskNames @($configuration.Tasks.Keys) 'Tasks in configuration'
-	$problems = @(Test-ABConfiguration -Configuration $configuration -BasePath $repoRoot)
+	$problems = @(Test-ABConfiguration -Configuration $configuration -BasePath $templateDir)
 	Assert-True ($problems.Count -eq 0) (($problems | ForEach-Object { "$($_.Task) -$($_.Parameter): $($_.Message)" }) -join '; ')
 }
 
@@ -224,15 +233,39 @@ Test-Case 'Runner script only passes non-default values and parses' {
 	Assert-True ($runner -notmatch 'UpdateThemeWallpaper') 'Default value emitted'
 }
 
+$project = Join-Path $temp 'Project'
+Test-Case 'New-AutopilotBrandingProject creates a project from the template in the module' {
+	Assert-Equal $templateDir (Get-ABTemplatePath) 'Template path'
+	$result = New-AutopilotBrandingProject -Path $project
+	Assert-Equal (Join-Path $project 'AutopilotBranding.json') $result.ConfigPath 'ConfigPath'
+	$templateFiles = @(Get-ChildItem (Join-Path $templateDir 'Assets') -Recurse -File | ForEach-Object { $_.FullName.Substring($templateDir.Length + 1) })
+	Assert-True ($templateFiles.Count -gt 10) "Only $($templateFiles.Count) template files"
+	foreach ($relative in $templateFiles) {
+		Assert-True (Test-Path (Join-Path $project $relative)) "Missing $relative in the project"
+	}
+	$problems = @(Test-ABConfiguration -Configuration (Read-ABConfiguration -Path $result.ConfigPath) -BasePath $project)
+	Assert-True ($problems.Count -eq 0) 'Project configuration does not validate against its own folder'
+
+	# An existing project is refused without -Force; -Force replaces the configuration and sample files
+	$threw = $false
+	try { New-AutopilotBrandingProject -Path $project | Out-Null } catch { $threw = $_.Exception.Message -match 'already contains a project' }
+	Assert-True $threw 'Existing project not refused'
+	Set-Content -Path (Join-Path $project 'Assets\Autopilot.theme') -Value 'customized'
+	New-AutopilotBrandingProject -Path $project -Force | Out-Null
+	Assert-Equal (Get-FileHash (Join-Path $templateDir 'Assets\Autopilot.theme')).Hash (Get-FileHash (Join-Path $project 'Assets\Autopilot.theme')).Hash '-Force did not restore the sample file'
+}
+
 $build = $null
-Test-Case 'Build-AutopilotBranding (alias) creates the output folder and .intunewin package' {
+Test-Case 'Build-AutopilotBranding (alias) builds a project into its Output folder and .intunewin package' {
 	Assert-Equal 'New-AutopilotBrandingPackage' (Get-Alias Build-AutopilotBranding).Definition 'Alias target'
-	$script:build = Build-AutopilotBranding -ConfigPath $defaultConfig -OutputPath (Join-Path $temp 'Output') -PassThru 6>$null
+	$script:build = Build-AutopilotBranding -ProjectPath $project -PassThru 6>$null
+	Assert-Equal (Join-Path $project 'Output') $script:build.OutputPath 'Output path'
 	foreach ($relative in 'AutopilotBranding.ps1', 'AutopilotBranding.json', 'AutopilotBranding\AutopilotBranding.psd1',
 		'AutopilotBranding\Tasks\030-Set-ABTheme.ps1', 'Assets\Autopilot.theme', 'Assets\start2.bin', 'Assets\Contoso.bmp') {
 		Assert-True (Test-Path (Join-Path $script:build.OutputPath $relative)) "Missing $relative"
 	}
-	Assert-Equal (Join-Path $temp 'AutopilotBranding.intunewin') $script:build.Package 'Package path'
+	Assert-True (-not (Test-Path (Join-Path $script:build.OutputPath 'AutopilotBranding\Template'))) 'The module template was copied into the output'
+	Assert-Equal (Join-Path $project 'AutopilotBranding.intunewin') $script:build.Package 'Package path'
 	Assert-True ((Get-Item $script:build.Package).Length -gt 10000) 'Package is too small'
 	$errors = $null
 	[System.Management.Automation.Language.Parser]::ParseFile($script:build.RunnerScript, [ref]$null, [ref]$errors) | Out-Null
@@ -278,7 +311,7 @@ Test-Case 'Builder UI loads and its controls update the configuration' {
 	New-Item -Path (Split-Path $uiConfig) -ItemType Directory -Force | Out-Null
 
 	& $module {
-		param ($ConfigPath, $SavePath, $TaskNames)
+		param ($SavePath, $TaskNames, $ProjectConfig)
 		$ErrorActionPreference = 'Stop'
 
 		function Get-Descendants($Element) {
@@ -306,10 +339,13 @@ Test-Case 'Builder UI loads and its controls update the configuration' {
 
 		$script:ABUISuppressDialogs = $true
 		try {
-			Initialize-ABBuilderWindow -ConfigPath $ConfigPath -OutputPath (Join-Path (Split-Path $SavePath) 'Output')
+			# No configuration: the default template is loaded, unsaved
+			Initialize-ABBuilderWindow -ConfigPath '' -OutputPath ''
 
 			if ($ui.TaskList.Items.Count -ne $TaskNames.Count) { throw "Task list has $($ui.TaskList.Items.Count) items" }
-			if ($State.ConfigPath -ne $ConfigPath) { throw 'Configuration not loaded' }
+			if ($State.ConfigPath) { throw 'Expected the unsaved default template' }
+			if (-not $State.Configuration.Tasks['Set-ABTheme'].Enabled) { throw 'Default template not loaded' }
+			if ($ui.OutputPathBox.Text) { throw 'Output folder set for an unsaved configuration' }
 
 			# Every task's details render (editors for every parameter type)
 			foreach ($name in $TaskNames) { Select-Task $name }
@@ -356,14 +392,30 @@ Test-Case 'Builder UI loads and its controls update the configuration' {
 			Click $ui.AllButton
 			if (@($State.Configuration.Tasks.Values | Where-Object { -not $_.Enabled }).Count -ne 0) { throw 'All button did not enable all tasks' }
 
-			# Save to another folder: file paths are rebased so they still point at the same files
+			# Saving into the module's template folder is refused
+			$refused = $false
+			try { Save-Configuration -Path (Join-Path (Get-ABTemplatePath) 'Test.json') | Out-Null } catch { $refused = $true }
+			if (-not $refused) { throw 'Saving into the template folder was not refused' }
+
+			# Saving the template elsewhere creates a project: the template files it uses are copied there
 			if (-not (Save-Configuration -Path $SavePath)) { throw 'Save failed' }
+			foreach ($relative in 'Assets\Autopilot.jpg', 'Assets\start2.bin', 'Assets\UEV\MicrosoftOffice2016Win64.xml', 'Assets\LPs\readme.txt') {
+				if (-not (Test-Path (Join-Path (Split-Path $SavePath) $relative))) { throw "$relative was not copied into the project" }
+			}
+			if ($ui.OutputPathBox.Text -ne (Join-Path (Split-Path $SavePath) 'Output')) { throw "Output folder not set to the project's: $($ui.OutputPathBox.Text)" }
 			if ($State.ConfigPath -ne $SavePath) { throw 'Configuration path not updated after saving' }
 			if ($State.Dirty) { throw 'Still dirty after saving' }
 			$saved = Read-ABConfiguration -Path $SavePath
 			if ($saved.Tasks['Set-ABRegisteredOwner'].Parameters.Owner -ne 'Test Owner') { throw 'Saved value missing' }
 			$problems = @(Test-ABConfiguration -Configuration $saved -BasePath (Split-Path $SavePath))
 			if ($problems.Count -gt 0) { throw "Saved configuration has problems: $(($problems | ForEach-Object { "$($_.Task) -$($_.Parameter): $($_.Message)" }) -join '; ')" }
+			if (@($saved.Tasks.Values | Where-Object { $_.Parameters.Values | Where-Object { $_ -is [string] -and $_ -like '*\Template\*' } }).Count -gt 0) {
+				throw 'Saved configuration still points into the module template'
+			}
+
+			# Opening a project sets the output folder to the project's
+			Set-Configuration -Configuration (Read-ABConfiguration -Path $ProjectConfig -TaskDefinitions $State.Definitions) -Path $ProjectConfig
+			if ($ui.OutputPathBox.Text -ne (Join-Path (Split-Path $ProjectConfig) 'Output')) { throw 'Output folder not set when opening a project' }
 		}
 		finally {
 			$script:ABUISuppressDialogs = $false
@@ -373,7 +425,7 @@ Test-Case 'Builder UI loads and its controls update the configuration' {
 			$script:ui = $null
 			$script:State = $null
 		}
-	} $defaultConfig $uiConfig $taskNames
+	} $uiConfig $taskNames (Join-Path $project 'AutopilotBranding.json')
 }
 
 Test-Case 'Show-AutopilotBrandingBuilder has the expected parameters' {
@@ -387,8 +439,8 @@ Test-Case 'Show-AutopilotBrandingBuilder has the expected parameters' {
 #region Command scripts
 
 if (-not $SkipCmd) {
-	Test-Case 'makeapp.cmd builds Output and AutopilotBranding.intunewin with this PowerShell version' {
-		$package = Join-Path $repoRoot 'AutopilotBranding.intunewin'
+	Test-Case 'makeapp.cmd creates and builds the default Project folder with this PowerShell version' {
+		$package = Join-Path $repoRoot 'Project\AutopilotBranding.intunewin'
 		Remove-Item $package -Force -ErrorAction SilentlyContinue
 		$env:AB_POWERSHELL = $psExe
 		try {
@@ -400,7 +452,8 @@ if (-not $SkipCmd) {
 		}
 		Assert-Equal 0 $exitCode "makeapp.cmd exit code (output: $output)"
 		Assert-True (Test-Path $package) "Package not created (output: $output)"
-		Assert-True (Test-Path (Join-Path $repoRoot 'Output\AutopilotBranding.ps1')) 'Output not created'
+		Assert-True (Test-Path (Join-Path $repoRoot 'Project\AutopilotBranding.json')) 'Project not created'
+		Assert-True (Test-Path (Join-Path $repoRoot 'Project\Output\AutopilotBranding.ps1')) 'Output not created'
 	}
 
 	Test-Case 'ShowBuilder.cmd starts the builder UI with this PowerShell version' {

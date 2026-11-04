@@ -14,15 +14,19 @@ function New-AutopilotBrandingPackage {
 	The output folder is then packaged as AutopilotBranding.intunewin (using the SvRooij.ContentPrep.Cmdlet module,
 	which is installed from the PowerShell Gallery if needed).
 
-	Use Show-AutopilotBrandingBuilder to edit the configuration interactively.
+	Use New-AutopilotBrandingProject to create a project folder (configuration plus sample assets) and
+	Show-AutopilotBrandingBuilder to edit the configuration interactively.
 
 	Build-AutopilotBranding is an alias for this cmdlet.  (Build isn't an approved verb in Windows PowerShell 5.1, so
 	the cmdlet itself uses New to avoid a warning when the module is imported.)
 
+	.PARAMETER ProjectPath
+	Project folder (see New-AutopilotBrandingProject): uses its AutopilotBranding.json and, by default, creates the
+	Output folder and the .intunewin file in it.
+
 	.PARAMETER ConfigPath
-	JSON configuration file.  Relative file and folder paths in it are relative to the file's folder.  Defaults to
-	AutopilotBranding.json in the repository root (when the module is loaded from the repository) or in the current
-	folder.
+	JSON configuration file, instead of ProjectPath.  Relative file and folder paths in it are relative to the file's
+	folder.  If neither is specified, AutopilotBranding.json in the current folder is used.
 
 	.PARAMETER OutputPath
 	Output folder.  Its existing contents are replaced.  Defaults to an Output folder next to the configuration file.
@@ -36,6 +40,11 @@ function New-AutopilotBrandingPackage {
 
 	.PARAMETER PassThru
 	Return an object describing the output folder, runner script and package.
+
+	.EXAMPLE
+	New-AutopilotBrandingPackage -ProjectPath C:\AutopilotBranding\Contoso
+
+	Creates C:\AutopilotBranding\Contoso\Output and C:\AutopilotBranding\Contoso\AutopilotBranding.intunewin.
 
 	.EXAMPLE
 	New-AutopilotBrandingPackage -ConfigPath .\AutopilotBranding.json -OutputPath .\Output
@@ -52,6 +61,7 @@ function New-AutopilotBrandingPackage {
 	#>
 	[CmdletBinding()]
 	param (
+		[Parameter(Mandatory = $false)] [string] $ProjectPath,
 		[Parameter(Mandatory = $false)] [string] $ConfigPath,
 		[Parameter(Mandatory = $false)] [string] $OutputPath,
 		[Parameter(Mandatory = $false)] [string] $PackagePath,
@@ -61,7 +71,12 @@ function New-AutopilotBrandingPackage {
 
 	$ErrorActionPreference = 'Stop'
 
-	if (-not $ConfigPath) {
+	if ($ProjectPath -and $ConfigPath) {
+		throw 'Specify either -ProjectPath or -ConfigPath, not both.'
+	}
+	if ($ProjectPath) {
+		$ConfigPath = Join-Path (ConvertTo-ABFullPath $ProjectPath) 'AutopilotBranding.json'
+	} elseif (-not $ConfigPath) {
 		$ConfigPath = Get-ABDefaultConfigurationPath
 	}
 	$ConfigPath = ConvertTo-ABFullPath $ConfigPath
@@ -74,7 +89,7 @@ function New-AutopilotBrandingPackage {
 	}
 
 	if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
-		throw "Configuration file not found: $ConfigPath"
+		throw "Configuration file not found: $ConfigPath.  Create a project with New-AutopilotBrandingProject, or specify -ProjectPath or -ConfigPath."
 	}
 	if (-not $OutputPath) {
 		$OutputPath = Join-Path (Split-Path -Path $ConfigPath -Parent) 'Output'

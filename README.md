@@ -14,23 +14,54 @@ Starting with v4, the old single `AutopilotBranding.ps1` script and its `Config.
 - **A headless builder** (the `New-AutopilotBrandingPackage` cmdlet, also available as `Build-AutopilotBranding`,
   run by `makeapp.cmd`). It does the same from a JSON
   file without the UI, which is useful for CI.
+- **Projects** (the `New-AutopilotBrandingProject` cmdlet). The module includes a default template: the default
+  configuration and sample files such as the theme, wallpaper and layouts. A project is a folder created from that
+  template. It holds your configuration and your own versions of those files, and the output and `.intunewin` are
+  generated there. The module is self-contained, ready to be published to the PowerShell Gallery.
 
 `Build-AutopilotBranding` is an alias: Build isn't an approved verb in Windows PowerShell 5.1, which would warn on
 every import if the cmdlet used it. Both cmdlets are part of the module, and everything works with Windows PowerShell 5.1 and PowerShell 7 (the tests
 run with 5.1 and 7.6).
 
+## Getting started
+
+```powershell
+Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1    # or Install-Module AutopilotBranding, once published
+
+New-AutopilotBrandingProject -Path C:\AutopilotBranding\Contoso      # configuration + sample Assets to customize
+# Replace the files in C:\AutopilotBranding\Contoso\Assets with your own (wallpaper, theme, layouts, ...)
+Show-AutopilotBrandingBuilder -ProjectPath C:\AutopilotBranding\Contoso   # pick tasks and settings, then generate
+# or, without the UI:
+Build-AutopilotBranding -ProjectPath C:\AutopilotBranding\Contoso
+```
+
+A project folder looks like this:
+
+```
+AutopilotBranding.json        Your configuration (starts as the default configuration)
+Assets\                       Your files, starting with copies of the template's samples
+Output\                       Generated: module, assets used, runner script (what goes into the package)
+AutopilotBranding.intunewin   Generated: the Intune Win32 app
+```
+
+The template itself (`Template\` in the module) is never changed. If you open the builder without a project, it
+shows the template as an unsaved configuration. Saving it in a folder turns that folder into a project and copies
+the template files the configuration uses. **New project...** in the builder does the same as
+`New-AutopilotBrandingProject`. In this repository, `ShowBuilder.cmd` and `makeapp.cmd` use `.\Project`, which
+is ignored by git, or the folder you pass to them. They create the project from the template the first time.
+
 ## Repository layout
 
 ```
-AutopilotBranding.json            Default configuration (equivalent to the v3 Config.xml defaults)
-ShowBuilder.cmd                   Loads the module and runs Show-AutopilotBrandingBuilder (the builder UI)
-makeapp.cmd                       Loads the module and runs Build-AutopilotBranding on AutopilotBranding.json
-Assets\                           Sample files used by the default configuration (theme, wallpaper, layouts, ...)
+ShowBuilder.cmd [project]         Loads the module and runs Show-AutopilotBrandingBuilder on .\Project (or [project])
+makeapp.cmd [project]             Loads the module and builds .\Project (or [project]) into Output and .intunewin
 Tests\Test-AutopilotBranding.ps1  Automated tests (run with each PowerShell version)
 Module\AutopilotBranding\
     AutopilotBranding.psd1/.psm1  Module manifest and loader
-    Public\Show-AutopilotBrandingBuilder.ps1, New-AutopilotBrandingPackage.ps1
-                                  The builder UI and headless builder cmdlets
+    Template\                     Default project template: AutopilotBranding.json (equivalent to the v3 Config.xml
+                                  defaults) and Assets\ (theme, wallpaper, layouts, ...)
+    Public\Show-AutopilotBrandingBuilder.ps1, New-AutopilotBrandingPackage.ps1, New-AutopilotBrandingProject.ps1
+                                  The builder UI, headless builder and project cmdlets
     Public\Builder.ps1            Builder functions (task discovery, JSON handling, output generation, packaging)
     Public\Session.ps1            Run framework (Start-/Stop-AutopilotBranding, Invoke-ABTask, Write-ABLog, ...)
     Private\Common.ps1            Shared task helpers (default user hive, registry, downloads, OOBE check, ...)
@@ -94,17 +125,22 @@ Run `ShowBuilder.cmd`, or from PowerShell:
 
 ```powershell
 Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1
-Show-AutopilotBrandingBuilder -ConfigPath .\AutopilotBranding.json
+Show-AutopilotBrandingBuilder -ProjectPath C:\AutopilotBranding\Contoso
 ```
 
-1. The default configuration (`AutopilotBranding.json`) is loaded. Use **Open...** to load another configuration,
-   **New** to start with every task disabled, or **Import Config.xml...** to convert a v3 `Config.xml`.
+1. The project's configuration is loaded. With no project or configuration, the builder loads the default template
+   as an unsaved configuration. Use **New project...** to create a project from the template, **Open...** to load
+   another configuration, **New** to start with every task disabled, or **Import Config.xml...** to convert a v3
+   `Config.xml`.
 2. The tasks are listed on the left. Tick the ones that should run. Select a task to see its description and
    parameters, then enter the values: check boxes for on/off settings, drop-down lists for fixed choices, one value
    per line for lists, and **Browse...** for files and folders.
-3. **Save** / **Save As...** writes your choices to a JSON file.
-4. Choose an output folder and click **Generate output and .intunewin**. This generates the output folder and
-   packages it as `AutopilotBranding.intunewin` in the output folder's parent folder.
+3. **Save** / **Save As...** writes your choices to a JSON file. When the configuration moves to another folder,
+   files that came from the template are copied there, and other file paths are adjusted so they still point at
+   the same files.
+4. Click **Generate output and .intunewin**. This generates the output folder, by default the project's `Output`,
+   and packages it as `AutopilotBranding.intunewin` in the output folder's parent folder, which is the project. A
+   configuration has to be saved before it can be generated.
 
 ## The JSON configuration
 
@@ -175,15 +211,17 @@ package provider it needs, are installed for the current user from the PowerShel
 package. Every build creates the package. You can build in any of these ways:
 
 - In the UI, click **Generate output and .intunewin**.
-- From PowerShell (`-PackagePath` is optional and defaults to the output folder's parent folder):
+- From PowerShell:
 
   ```powershell
   Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1
+  Build-AutopilotBranding -ProjectPath C:\AutopilotBranding\Contoso
+  # or with explicit paths (-OutputPath and -PackagePath are optional):
   Build-AutopilotBranding -ConfigPath .\MyConfig.json -OutputPath .\Output -PackagePath .
   ```
 
-- Run `makeapp.cmd`. It builds `.\Output` from `AutopilotBranding.json` and creates `AutopilotBranding.intunewin`
-  in the repository folder.
+- Run `makeapp.cmd [project folder]`. It builds `.\Project`, or the given folder, creating it from the template if
+  needed. The result is `<project>\Output` and `<project>\AutopilotBranding.intunewin`.
 
 ## Using
 

@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Description": "Default Autopilot Branding configuration (equivalent to the v3 Config.xml defaults)",
+  "Description": "Autopilot Branding project created from the default template (equivalent to the v3 Config.xml defaults)",
   "Tasks": {
     "Rename-ABComputer": {
       "Enabled": false,

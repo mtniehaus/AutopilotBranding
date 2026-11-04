@@ -66,12 +66,12 @@ jobs:
       run: |
         call MakeApp.cmd || exit /b 1
         mkdir Build
-        copy AutopilotBranding.intunewin Build
+        copy Project\AutopilotBranding.intunewin Build
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: AutopilotBranding
         path: |
-          AutopilotBranding.intunewin
-          Output
+          Project/AutopilotBranding.intunewin
+          Project/Output

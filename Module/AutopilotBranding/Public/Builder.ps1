@@ -30,23 +30,31 @@ function Get-ABDefaultModulePath {
 function Get-ABDefaultConfigurationPath {
 	<#
 	.SYNOPSIS
-	Returns the path of the default configuration file (AutopilotBranding.json).
+	Returns the path of the default configuration file: AutopilotBranding.json in the current folder.
 	.DESCRIPTION
-	When the module is loaded from a copy of the repository (Module\AutopilotBranding), this is the
-	AutopilotBranding.json file in the repository root.  Otherwise it is AutopilotBranding.json in the current folder.
+	The file doesn't need to exist.  Create a project (configuration plus assets) with New-AutopilotBrandingProject.
 	#>
 	[CmdletBinding()]
 	[OutputType([string])]
 	param ()
 
-	$repositoryRoot = Split-Path -Path (Split-Path -Path $script:ABModuleRoot -Parent) -Parent
-	if ($repositoryRoot) {
-		$candidate = Join-Path $repositoryRoot 'AutopilotBranding.json'
-		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-			return $candidate
-		}
-	}
 	Join-Path (Get-Location).ProviderPath 'AutopilotBranding.json'
+}
+
+
+function Get-ABTemplatePath {
+	<#
+	.SYNOPSIS
+	Returns the folder of the default project template included in the module.
+	.DESCRIPTION
+	The template contains the default configuration (AutopilotBranding.json) and the sample files it uses (Assets).
+	New-AutopilotBrandingProject copies it to a project folder; don't edit the template itself.
+	#>
+	[CmdletBinding()]
+	[OutputType([string])]
+	param ()
+
+	Join-Path $script:ABModuleRoot 'Template'
 }
 
 
@@ -661,6 +669,11 @@ function New-ABOutput {
 	# Copy the module
 	$moduleDest = Join-Path $OutputPath 'AutopilotBranding'
 	Copy-Item -Path $ModulePath -Destination $moduleDest -Recurse -Force
+	# The project template (sample assets) isn't needed on the device
+	$templateCopy = Join-Path $moduleDest 'Template'
+	if (Test-Path -LiteralPath $templateCopy) {
+		Remove-Item -LiteralPath $templateCopy -Recurse -Force
+	}
 	$manifest = Import-PowerShellDataFile -Path (Join-Path $ModulePath 'AutopilotBranding.psd1')
 
 	# Copy the assets used by enabled tasks
