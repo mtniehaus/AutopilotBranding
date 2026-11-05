@@ -134,7 +134,14 @@ Show-AutopilotBrandingBuilder -ProjectPath C:\AutopilotBranding\Contoso
    `Config.xml`.
 2. The tasks are listed on the left. Tick the ones that should run. Select a task to see its description and
    parameters, then enter the values: check boxes for on/off settings, drop-down lists for fixed choices, one value
-   per line for lists, and **Browse...** for files and folders.
+   per line for lists, and **Browse...** for files and folders. If the file or folder you pick isn't in the
+   project's `Assets` folder, the builder asks whether to copy it there:
+   - **Yes** copies it and uses the copy.
+   - **No** uses it where it is.
+   - **Cancel** leaves the setting unchanged.
+
+   If `Assets` already has a different file or folder with that name, the builder asks before replacing it. An
+   identical file is reused without asking.
 3. **Save** / **Save As...** writes your choices to a JSON file. When the configuration moves to another folder,
    files that came from the template are copied there, and other file paths are adjusted so they still point at
    the same files.
@@ -172,6 +179,18 @@ Show-AutopilotBrandingBuilder -ProjectPath C:\AutopilotBranding\Contoso
 
 Every build creates the output folder and then packages it as `AutopilotBranding.intunewin`. By default the
 package goes in the output folder's parent folder; for example, `.\Output` produces `.\AutopilotBranding.intunewin`.
+The package is self-contained:
+
+- Every file and folder that an enabled task uses is copied into the output's `Assets` folder, wherever it came
+  from. That includes files outside the project.
+- The runner script passes those files relative to its own folder.
+- The packaged `AutopilotBranding.json` refers to them as `Assets\...`.
+- File settings of disabled tasks are cleared in the packaged configuration, because their files aren't included.
+
+Generation fails if anything still refers to a path outside the output folder. It warns about other values in the
+runner script that look like paths on the build computer. `Test-ABOutputSelfContained` runs the same check on any
+output folder.
+
 The output folder contains:
 
 ```

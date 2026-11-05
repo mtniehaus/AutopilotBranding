@@ -132,7 +132,7 @@ $taskNames = @($taskFiles | ForEach-Object { $_.BaseName -replace '^\d+-', '' })
 
 Test-Case 'Exports the cmdlets, tasks and builder functions, and nothing private' {
 	$exported = @((Get-Command -Module AutopilotBranding).Name)
-	$expected = @('Show-AutopilotBrandingBuilder', 'New-AutopilotBrandingPackage', 'Build-AutopilotBranding', 'New-AutopilotBrandingProject', 'Get-ABTemplatePath', 'Start-AutopilotBranding', 'Stop-AutopilotBranding',
+	$expected = @('Show-AutopilotBrandingBuilder', 'New-AutopilotBrandingPackage', 'Build-AutopilotBranding', 'New-AutopilotBrandingProject', 'Get-ABTemplatePath', 'Test-ABOutputSelfContained', 'Start-AutopilotBranding', 'Stop-AutopilotBranding',
 		'Invoke-ABTask', 'Write-ABLog', 'Mount-ABDefaultUserHive', 'Dismount-ABDefaultUserHive', 'Get-ABTaskDefinition',
 		'Read-ABConfiguration', 'Save-ABConfiguration', 'Test-ABConfiguration', 'New-ABOutput', 'New-ABIntuneWinPackage',
 		'ConvertFrom-ABLegacyConfig') + $taskNames
@@ -140,7 +140,8 @@ Test-Case 'Exports the cmdlets, tasks and builder functions, and nothing private
 	Assert-True ($missing.Count -eq 0) "Not exported: $($missing -join ', ')"
 	$private = @('Get-Value', 'Get-List', 'Get-File', 'Invoke-ABHiveUnload', 'Show-ABUIMessage', 'Initialize-ABBuilderWindow',
 		'ConvertTo-ABFullPath', 'Test-ABArm64', 'Set-ABRegistryValue', 'Get-ABAstValue', 'Show-TaskDetail', 'Invoke-Safely',
-		'Update-ABAssetBase', 'Copy-ABItemNoOverwrite', 'Test-ABPathUnder', 'Get-DialogFolder')
+		'Update-ABAssetBase', 'Copy-ABItemNoOverwrite', 'Test-ABPathUnder', 'Get-DialogFolder', 'Copy-ABProjectAsset',
+		'Get-ABProjectAssetTarget', 'Set-AssetFromSelection', 'Test-ABSameContent')
 	$leaked = @($private | Where-Object { $exported -contains $_ })
 	Assert-True ($leaked.Count -eq 0) "Private functions exported: $($leaked -join ', ')"
 }
@@ -274,6 +275,62 @@ Test-Case 'Build-AutopilotBranding (alias) builds a project into its Output fold
 	Assert-True ($errors.Count -eq 0) "Runner parse errors: $($errors[0].Message)"
 	$problems = @(Test-ABConfiguration -Configuration (Read-ABConfiguration -Path (Join-Path $script:build.OutputPath 'AutopilotBranding.json')) -BasePath $script:build.OutputPath)
 	Assert-True ($problems.Count -eq 0) 'Output configuration does not validate against the copied assets'
+	$selfContained = @(Test-ABOutputSelfContained -OutputPath $script:build.OutputPath)
+	Assert-True ($selfContained.Count -eq 0) "Output not self-contained: $(($selfContained | ForEach-Object { $_.Message }) -join '; ')"
+	$outputConfig = Read-ABConfiguration -Path (Join-Path $script:build.OutputPath 'AutopilotBranding.json')
+	Assert-Equal '' $outputConfig.Tasks['Set-ABLanguage'].Parameters.LanguageXmlPath 'File parameter of a disabled task not cleared in the packaged configuration'
+	Assert-True ($outputConfig.Tasks['Set-ABTheme'].Parameters.ThemePath -like 'Assets\*') 'Packaged ThemePath not relative'
+}
+
+Test-Case 'Files outside the project are copied into the package and referenced relatively' {
+	$external = Join-Path $temp 'External files'
+	New-Item -Path $external -ItemType Directory -Force | Out-Null
+	$wallpaper = Join-Path $external 'Outside Wallpaper.jpg'
+	Copy-Item (Join-Path $templateDir 'Assets\Autopilot.jpg') $wallpaper
+	$configuration = Read-ABConfiguration -Path (Join-Path $project 'AutopilotBranding.json')
+	$configuration.Tasks['Set-ABTheme'].Parameters.WallpaperPath = $wallpaper
+	$configPath = Join-Path $temp 'external.json'
+	Save-ABConfiguration -Configuration $configuration -Path $configPath
+	# Relative paths in this configuration are relative to $temp, so point them back at the project's files
+	Copy-Item (Join-Path $project 'Assets') (Join-Path $temp 'Assets') -Recurse -Force
+
+	$result = New-ABOutput -Configuration (Read-ABConfiguration -Path $configPath) -BasePath $temp -OutputPath (Join-Path $temp 'ExternalOutput') -Force
+	Assert-True (Test-Path (Join-Path $result.OutputPath 'Assets\Outside Wallpaper.jpg')) 'External file not copied into the output'
+	$runner = Get-Content $result.RunnerScript -Raw
+	Assert-True ($runner -match "WallpaperPath = \(Join-Path \`$AssetRoot 'Outside Wallpaper.jpg'\)") 'External file not referenced relative to the runner'
+	Assert-True ($runner -notmatch [regex]::Escape($external)) 'Runner refers to the external folder'
+	Assert-True ((Get-Content (Join-Path $result.OutputPath 'AutopilotBranding.json') -Raw) -notmatch [regex]::Escape($temp.Replace('\', '\\'))) 'Packaged configuration refers to the build machine'
+	Assert-True (@(Test-ABOutputSelfContained -OutputPath $result.OutputPath).Count -eq 0) 'Output not self-contained'
+
+	# A packaged configuration that refers outside the package is reported
+	$packaged = Read-ABConfiguration -Path (Join-Path $result.OutputPath 'AutopilotBranding.json')
+	$packaged.Tasks['Set-ABTheme'].Parameters.WallpaperPath = $wallpaper
+	Save-ABConfiguration -Configuration $packaged -Path (Join-Path $result.OutputPath 'AutopilotBranding.json')
+	$problems = @(Test-ABOutputSelfContained -OutputPath $result.OutputPath | Where-Object { $_.Severity -eq 'Error' })
+	Assert-True ($problems.Count -eq 1 -and $problems[0].Message -match 'WallpaperPath') 'Full path in the packaged configuration not reported'
+}
+
+Test-Case 'Files and folders are copied into a project''s Assets folder (replace only when asked)' {
+	$external = Join-Path $temp 'Copy source'
+	New-Item -Path (Join-Path $external 'Templates') -ItemType Directory -Force | Out-Null
+	Set-Content -Path (Join-Path $external 'Logo.bmp') -Value 'logo'
+	Set-Content -Path (Join-Path $external 'Templates\One.xml') -Value '<one/>'
+	Set-Content -Path (Join-Path $external 'Autopilot.jpg') -Value 'different wallpaper'
+
+	$copied = & $module { param ($s, $p) Copy-ABProjectAsset -Source $s -ProjectPath $p } (Join-Path $external 'Logo.bmp') $project
+	Assert-Equal 'Assets\Logo.bmp' $copied 'Relative path of the copied file'
+	Assert-True (Test-Path (Join-Path $project 'Assets\Logo.bmp')) 'File not copied'
+	$copied = & $module { param ($s, $p) Copy-ABProjectAsset -Source $s -ProjectPath $p } (Join-Path $external 'Templates') $project
+	Assert-True (Test-Path (Join-Path $project 'Assets\Templates\One.xml')) 'Folder not copied'
+	# Identical: no error, nothing to replace
+	& $module { param ($s, $p) Copy-ABProjectAsset -Source $s -ProjectPath $p } (Join-Path $external 'Logo.bmp') $project | Out-Null
+	# Different file with the same name: refused without -Replace, replaced with it
+	$threw = $false
+	try { & $module { param ($s, $p) Copy-ABProjectAsset -Source $s -ProjectPath $p } (Join-Path $external 'Autopilot.jpg') $project } catch { $threw = $true }
+	Assert-True $threw 'Existing different file replaced without -Replace'
+	& $module { param ($s, $p) Copy-ABProjectAsset -Source $s -ProjectPath $p -Replace } (Join-Path $external 'Autopilot.jpg') $project | Out-Null
+	Assert-Equal (Get-FileHash (Join-Path $external 'Autopilot.jpg')).Hash (Get-FileHash (Join-Path $project 'Assets\Autopilot.jpg')).Hash 'File not replaced'
+	Copy-Item (Join-Path $templateDir 'Assets\Autopilot.jpg') (Join-Path $project 'Assets\Autopilot.jpg') -Force
 }
 
 Test-Case 'Package destination inside the output folder is rejected' {
@@ -311,9 +368,16 @@ Test-Case 'Builder UI loads and its controls update the configuration' {
 	Assert-True ([System.Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA') 'Not running in an STA thread'
 	$uiConfig = Join-Path $temp 'ui\AutopilotBranding.json'
 	New-Item -Path (Split-Path $uiConfig) -ItemType Directory -Force | Out-Null
+	# Files outside the project for the Browse / copy-to-Assets tests
+	$uiExternal = Join-Path $temp 'ui external'
+	New-Item -Path (Join-Path $uiExternal 'UEV Templates') -ItemType Directory -Force | Out-Null
+	Set-Content -Path (Join-Path $uiExternal 'New Wallpaper.jpg') -Value 'new wallpaper'
+	Set-Content -Path (Join-Path $uiExternal 'Autopilot.jpg') -Value 'a different Autopilot.jpg'
+	Set-Content -Path (Join-Path $uiExternal 'Other.jpg') -Value 'other'
+	Set-Content -Path (Join-Path $uiExternal 'UEV Templates\Custom.xml') -Value '<custom/>'
 
 	& $module {
-		param ($SavePath, $TaskNames, $ProjectConfig)
+		param ($SavePath, $TaskNames, $ProjectConfig, $ExternalDir)
 		$ErrorActionPreference = 'Stop'
 
 		function Get-Descendants($Element) {
@@ -415,19 +479,71 @@ Test-Case 'Builder UI loads and its controls update the configuration' {
 				throw 'Saved configuration still points into the module template'
 			}
 
+			# Browsing to a file outside the project's Assets folder offers to copy it there
+			$projectDir = Split-Path $SavePath
+			Select-Task 'Set-ABTheme'
+			$wallpaperBox = Find-Editor 'WallpaperPath'
+			$wallpaperDefinition = $wallpaperBox.Tag.Parameter
+			$script:ABUIDialogLog.Clear()
+
+			$script:ABUIDialogAnswers.Enqueue('Yes')
+			Set-AssetFromSelection -TextBox $wallpaperBox -Definition $wallpaperDefinition -SelectedPath (Join-Path $ExternalDir 'New Wallpaper.jpg')
+			if ($wallpaperBox.Text -ne 'Assets\New Wallpaper.jpg') { throw "Copy (Yes): unexpected path $($wallpaperBox.Text)" }
+			if (-not (Test-Path (Join-Path $projectDir 'Assets\New Wallpaper.jpg'))) { throw 'Copy (Yes): file not copied into Assets' }
+			if ($State.Configuration.Tasks['Set-ABTheme'].Parameters.WallpaperPath -ne 'Assets\New Wallpaper.jpg') { throw 'Copy (Yes): configuration not updated' }
+
+			# A file already in Assets is used without asking
+			$prompts = $script:ABUIDialogLog.Count
+			Set-AssetFromSelection -TextBox $wallpaperBox -Definition $wallpaperDefinition -SelectedPath (Join-Path $projectDir 'Assets\AutopilotLock.jpg')
+			if ($script:ABUIDialogLog.Count -ne $prompts) { throw 'Prompted for a file that is already in Assets' }
+			if ($wallpaperBox.Text -ne 'Assets\AutopilotLock.jpg') { throw "In Assets: unexpected path $($wallpaperBox.Text)" }
+
+			# Same name, different content: declining the replace leaves the parameter and the file unchanged
+			$originalHash = (Get-FileHash (Join-Path $projectDir 'Assets\Autopilot.jpg')).Hash
+			$script:ABUIDialogAnswers.Enqueue('Yes'); $script:ABUIDialogAnswers.Enqueue('No')
+			Set-AssetFromSelection -TextBox $wallpaperBox -Definition $wallpaperDefinition -SelectedPath (Join-Path $ExternalDir 'Autopilot.jpg')
+			if ($script:ABUIDialogLog[-1] -notmatch '^Replace file in Assets') { throw 'No replace confirmation' }
+			if ($wallpaperBox.Text -ne 'Assets\AutopilotLock.jpg') { throw 'Declined replace changed the parameter' }
+			if ((Get-FileHash (Join-Path $projectDir 'Assets\Autopilot.jpg')).Hash -ne $originalHash) { throw 'Declined replace changed the file' }
+
+			# ... confirming it replaces the file
+			$script:ABUIDialogAnswers.Enqueue('Yes'); $script:ABUIDialogAnswers.Enqueue('Yes')
+			Set-AssetFromSelection -TextBox $wallpaperBox -Definition $wallpaperDefinition -SelectedPath (Join-Path $ExternalDir 'Autopilot.jpg')
+			if ($wallpaperBox.Text -ne 'Assets\Autopilot.jpg') { throw 'Confirmed replace: parameter not set' }
+			if ((Get-FileHash (Join-Path $projectDir 'Assets\Autopilot.jpg')).Hash -ne (Get-FileHash (Join-Path $ExternalDir 'Autopilot.jpg')).Hash) { throw 'Confirmed replace: file not replaced' }
+
+			# No: use the file where it is;  Cancel: leave the parameter unchanged
+			$script:ABUIDialogAnswers.Enqueue('No')
+			Set-AssetFromSelection -TextBox $wallpaperBox -Definition $wallpaperDefinition -SelectedPath (Join-Path $ExternalDir 'Other.jpg')
+			if ($wallpaperBox.Text -ne (Join-Path $ExternalDir 'Other.jpg')) { throw "No: unexpected path $($wallpaperBox.Text)" }
+			if (Test-Path (Join-Path $projectDir 'Assets\Other.jpg')) { throw 'No: file was copied' }
+			$script:ABUIDialogAnswers.Enqueue('Cancel')
+			Set-AssetFromSelection -TextBox $wallpaperBox -Definition $wallpaperDefinition -SelectedPath (Join-Path $ExternalDir 'New Wallpaper.jpg')
+			if ($wallpaperBox.Text -ne (Join-Path $ExternalDir 'Other.jpg')) { throw 'Cancel changed the parameter' }
+
+			# Folders are copied too
+			Select-Task 'Enable-ABUEV'
+			$folderBox = Find-Editor 'TemplateFolder'
+			$script:ABUIDialogAnswers.Enqueue('Yes')
+			Set-AssetFromSelection -TextBox $folderBox -Definition $folderBox.Tag.Parameter -SelectedPath (Join-Path $ExternalDir 'UEV Templates')
+			if ($folderBox.Text -ne 'Assets\UEV Templates') { throw "Folder copy: unexpected path $($folderBox.Text)" }
+			if (-not (Test-Path (Join-Path $projectDir 'Assets\UEV Templates\Custom.xml'))) { throw 'Folder copy: folder not copied' }
+			if ($script:ABUIDialogAnswers.Count -ne 0) { throw "Unused dialog answers: $($script:ABUIDialogAnswers.Count)" }
+
 			# Opening a project sets the output folder to the project's
 			Set-Configuration -Configuration (Read-ABConfiguration -Path $ProjectConfig -TaskDefinitions $State.Definitions) -Path $ProjectConfig
 			if ($ui.OutputPathBox.Text -ne (Join-Path (Split-Path $ProjectConfig) 'Output')) { throw 'Output folder not set when opening a project' }
 		}
 		finally {
 			$script:ABUISuppressDialogs = $false
+			$script:ABUIDialogAnswers.Clear()
 			if ($State) { $State.Dirty = $false }
 			if ($window) { $window.Close() }
 			$script:window = $null
 			$script:ui = $null
 			$script:State = $null
 		}
-	} $uiConfig $taskNames (Join-Path $project 'AutopilotBranding.json')
+	} $uiConfig $taskNames (Join-Path $project 'AutopilotBranding.json') $uiExternal
 }
 
 Test-Case 'Show-AutopilotBrandingBuilder has the expected parameters' {

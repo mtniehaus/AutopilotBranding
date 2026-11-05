@@ -574,11 +574,11 @@ try {
 				if ([string]::IsNullOrWhiteSpace($value)) {
 					continue
 				}
-				if ($AssetMap.Contains($key)) {
-					$lines.Add("$($p.Name) = (Join-Path `$AssetRoot $(ConvertTo-ABLiteral -Value $AssetMap[$key]))")
-				} else {
-					$lines.Add("$($p.Name) = $(ConvertTo-ABLiteral -Value $value)")
+				# Files and folders are always referenced relative to the runner script (inside the package)
+				if (-not $AssetMap.Contains($key)) {
+					throw "$($task.Name) -$($p.Name): $value isn't in the asset map, so it wouldn't be included in the package."
 				}
+				$lines.Add("$($p.Name) = (Join-Path `$AssetRoot $(ConvertTo-ABLiteral -Value $AssetMap[$key]))")
 				continue
 			}
 			if ($p.Kind -eq 'Switch' -and -not $value) {
@@ -715,11 +715,21 @@ function New-ABOutput {
 		}
 	}
 
-	# Save the configuration used, with asset paths pointing at the copied files
+	# Save the configuration used, with asset paths pointing at the copied files.  File and folder parameters of
+	# disabled tasks are cleared: their files aren't in the package, and the package must not refer to anything outside it.
 	$outputConfiguration = ConvertTo-ABOrderedHashtable (ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $Configuration -Depth 10))
-	foreach ($key in $assetMap.Keys) {
-		$taskName, $paramName = $key -split '\|', 2
-		$outputConfiguration.Tasks[$taskName].Parameters[$paramName] = "Assets\$($assetMap[$key])"
+	foreach ($definition in $definitions) {
+		if (-not $outputConfiguration.Tasks.Contains($definition.Name)) {
+			continue
+		}
+		foreach ($p in ($definition.Parameters | Where-Object { $_.AssetKind })) {
+			$key = "$($definition.Name)|$($p.Name)"
+			if ($assetMap.Contains($key)) {
+				$outputConfiguration.Tasks[$definition.Name].Parameters[$p.Name] = "Assets\$($assetMap[$key])"
+			} elseif ($outputConfiguration.Tasks[$definition.Name].Parameters.Contains($p.Name)) {
+				$outputConfiguration.Tasks[$definition.Name].Parameters[$p.Name] = ''
+			}
+		}
 	}
 	Save-ABConfiguration -Configuration $outputConfiguration -Path (Join-Path $OutputPath 'AutopilotBranding.json')
 
@@ -729,11 +739,97 @@ function New-ABOutput {
 	# UTF-8 with BOM so that Windows PowerShell 5.1 reads non-ASCII characters correctly
 	[System.IO.File]::WriteAllText($runnerPath, $runner, (New-Object System.Text.UTF8Encoding($true)))
 
+	# Make sure everything the package refers to is inside it
+	$problems = @(Test-ABOutputSelfContained -OutputPath $OutputPath -RunnerName $RunnerName -TaskDefinitions $definitions)
+	foreach ($warning in ($problems | Where-Object { $_.Severity -eq 'Warning' })) {
+		Write-Warning $warning.Message
+	}
+	$errors = @($problems | Where-Object { $_.Severity -eq 'Error' })
+	if ($errors.Count -gt 0) {
+		throw "The output isn't self-contained:$([Environment]::NewLine)$(($errors | ForEach-Object { '  ' + $_.Message }) -join [Environment]::NewLine)"
+	}
+
 	[pscustomobject]@{
 		OutputPath   = $OutputPath
 		RunnerScript = $runnerPath
 		EnabledTasks = @($definitions | Where-Object { $Configuration.Tasks[$_.Name].Enabled } | ForEach-Object { $_.Name })
 		Assets       = @($sourceToName.Values)
+	}
+}
+
+
+function Test-ABOutputSelfContained {
+	<#
+	.SYNOPSIS
+	Checks that a generated output folder (the content of the .intunewin package) only refers to files inside it.
+	.DESCRIPTION
+	Returns a list of problems (Severity = Error or Warning, Message):
+	  - Error: a file or folder parameter in the output's AutopilotBranding.json that is a full path, goes outside the
+	    output folder (..), or doesn't exist in the output folder.
+	  - Error: a file or folder parameter that the runner script doesn't pass relative to its own folder ($AssetRoot).
+	  - Warning: another string value in the runner script that looks like a full path on the build machine (for
+	    example C:\Users\...), which won't exist on the device.  Device paths such as C:\Windows aren't reported.
+	#>
+	[CmdletBinding()]
+	param (
+		[Parameter(Mandatory = $true)] [string] $OutputPath,
+		[string] $RunnerName = 'AutopilotBranding.ps1',
+		[object[]] $TaskDefinitions
+	)
+
+	$OutputPath = ConvertTo-ABFullPath $OutputPath
+	if (-not $TaskDefinitions) {
+		$TaskDefinitions = @(Get-ABTaskDefinition -ModulePath (Join-Path $OutputPath 'AutopilotBranding'))
+	}
+
+	# The packaged configuration
+	$configPath = Join-Path $OutputPath 'AutopilotBranding.json'
+	if (Test-Path -LiteralPath $configPath) {
+		$configuration = Read-ABConfiguration -Path $configPath -TaskDefinitions $TaskDefinitions
+		foreach ($definition in $TaskDefinitions) {
+			$entry = $configuration.Tasks[$definition.Name]
+			foreach ($p in ($definition.Parameters | Where-Object { $_.AssetKind })) {
+				$value = [string]$entry.Parameters[$p.Name]
+				if ([string]::IsNullOrWhiteSpace($value)) {
+					continue
+				}
+				$where = "$($definition.Name) -$($p.Name) ($value)"
+				if ([System.IO.Path]::IsPathRooted($value) -or $value -match '^%|^\$') {
+					[pscustomobject]@{ Severity = 'Error'; Message = "$($where): not a path relative to the package" }
+				} elseif (($value -split '[\\/]') -contains '..') {
+					[pscustomobject]@{ Severity = 'Error'; Message = "$($where): goes outside the package" }
+				} elseif (-not (Test-Path -LiteralPath (Join-Path $OutputPath $value))) {
+					[pscustomobject]@{ Severity = 'Error'; Message = "$($where): not found in the package" }
+				}
+			}
+		}
+	}
+
+	# The runner script
+	$runnerPath = Join-Path $OutputPath $RunnerName
+	if (-not (Test-Path -LiteralPath $runnerPath)) {
+		[pscustomobject]@{ Severity = 'Error'; Message = "Runner script not found: $runnerPath" }
+		return
+	}
+	$assetParameters = @{}
+	foreach ($definition in $TaskDefinitions) {
+		foreach ($p in ($definition.Parameters | Where-Object { $_.AssetKind })) { $assetParameters[$p.Name] = $true }
+	}
+	$ast = [System.Management.Automation.Language.Parser]::ParseFile($runnerPath, [ref]$null, [ref]$null)
+	foreach ($hashtable in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.HashtableAst] }, $true)) {
+		foreach ($pair in $hashtable.KeyValuePairs) {
+			$name = [string]$pair.Item1.Extent.Text
+			if ($assetParameters.ContainsKey($name) -and $pair.Item2.Extent.Text -notmatch '^\(?Join-Path \$AssetRoot ') {
+				[pscustomobject]@{ Severity = 'Error'; Message = "Runner script: -$name isn't passed relative to the package ($($pair.Item2.Extent.Text))" }
+			}
+		}
+	}
+	$devicePrefixes = '^[A-Za-z]:\\(Windows|Program Files|Program Files \(x86\)|ProgramData)(\\|$)'
+	foreach ($constant in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst] }, $true)) {
+		$text = $constant.Value
+		if (($text -match '^[A-Za-z]:\\' -or $text -match '^\\\\') -and $text -notmatch $devicePrefixes) {
+			[pscustomobject]@{ Severity = 'Warning'; Message = "Runner script line $($constant.Extent.StartLineNumber): '$text' looks like a path on this computer; it won't be in the package." }
+		}
 	}
 }
 

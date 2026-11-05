@@ -7,9 +7,11 @@ $script:window = $null
 $script:ui = $null
 $script:State = $null
 
-# When set, Show-ABUIMessage throws instead of showing a message box (used by the automated tests, where a
-# message box would block forever).
+# When set, Show-ABUIMessage doesn't show a message box (used by the automated tests, where a message box would
+# block forever): it returns the next answer from $ABUIDialogAnswers (e.g. 'Yes'), or throws if there is none.
 $script:ABUISuppressDialogs = $false
+$script:ABUIDialogAnswers = New-Object System.Collections.Generic.Queue[string]
+$script:ABUIDialogLog = New-Object System.Collections.Generic.List[string]
 
 
 function Show-ABUIMessage {
@@ -22,6 +24,10 @@ function Show-ABUIMessage {
 	)
 
 	if ($script:ABUISuppressDialogs) {
+		$script:ABUIDialogLog.Add("$($Caption): $Text")
+		if ($script:ABUIDialogAnswers.Count -gt 0) {
+			return $script:ABUIDialogAnswers.Dequeue()
+		}
 		throw "Message box ($Caption): $Text"
 	}
 	if ($script:window) {
@@ -370,15 +376,14 @@ function New-ParameterEditor([string] $TaskName, $Definition, $Value) {
 						$dialog.InitialDirectory = Split-Path $current -Parent
 						$dialog.FileName = Split-Path $current -Leaf
 					} else {
-						$dialog.InitialDirectory = $base
+						$dialog.InitialDirectory = Get-DialogFolder
 					}
 					if ($dialog.ShowDialog($window)) {
 						$selectedPath = $dialog.FileName
 					}
 				}
 				if ($selectedPath) {
-					# Store paths inside the configuration's folder as relative paths
-					$box.Text = Get-ABRelativePath -Path $selectedPath -BasePath $base
+					Set-AssetFromSelection -TextBox $box -Definition $definition -SelectedPath $selectedPath
 				}
 			}
 		})
@@ -388,6 +393,59 @@ function New-ParameterEditor([string] $TaskName, $Definition, $Value) {
 	$panel.Children.Add($browse) | Out-Null
 	$panel.Children.Add($textBox) | Out-Null
 	return $panel
+}
+
+function Set-AssetFromSelection {
+	# Called after the user browses to a file or folder for a file/folder parameter.  If it isn't in the project's
+	# Assets folder, offers to copy it there (confirming before replacing a different file or folder with the same
+	# name), then sets the parameter (through its text box) to the path relative to the project.
+	param (
+		[Parameter(Mandatory = $true)] $TextBox,
+		[Parameter(Mandatory = $true)] $Definition,
+		[Parameter(Mandatory = $true)] [string] $SelectedPath
+	)
+
+	$kind = $Definition.AssetKind.ToLower()
+	if (-not $State.ConfigPath) {
+		Show-ABUIMessage -Text ("This configuration hasn't been saved to a project folder yet, so the $kind can't be copied into the project's Assets folder; it is referenced where it is.`r`n`r`n" +
+			"Saving the configuration creates a project.  Browse again afterwards to copy the $kind into its Assets folder.  Either way, it's copied into the package when you generate.") `
+			-Caption 'Copy to Assets' -Icon 'Information' | Out-Null
+		$TextBox.Text = $SelectedPath
+		return
+	}
+
+	$project = Split-Path -Path $State.ConfigPath -Parent
+	$target = Get-ABProjectAssetTarget -Source $SelectedPath -ProjectPath $project
+	if ($target.InAssets) {
+		$TextBox.Text = $target.Relative
+		return
+	}
+
+	$answer = Show-ABUIMessage -Text ("$SelectedPath isn't in the project's Assets folder ($($target.AssetsFolder)).`r`n`r`n" +
+		"Copy the $kind there and use the copy?`r`n`r`n" +
+		"Yes: copy it to $($target.Relative)`r`n" +
+		"No: use it where it is (it's still copied into the package when you generate)`r`n" +
+		"Cancel: don't change $($Definition.Name)") -Caption 'Copy to Assets' -Buttons 'YesNoCancel' -Icon 'Question'
+	if ($answer -eq 'No') {
+		$TextBox.Text = Get-ABRelativePath -Path $SelectedPath -BasePath $project
+		return
+	}
+	if ($answer -ne 'Yes') {
+		return
+	}
+
+	$replace = $false
+	if ($target.Exists -and -not $target.Identical) {
+		$confirm = Show-ABUIMessage -Text ("$($target.Relative) already exists in the project and is different from the selected $kind.`r`n`r`n" +
+			"Replace it with $($SelectedPath)?") -Caption 'Replace file in Assets' -Buttons 'YesNo' -Icon 'Warning'
+		if ($confirm -ne 'Yes') {
+			$ui.StatusText.Text = "$($Definition.Name) not changed"
+			return
+		}
+		$replace = $true
+	}
+	$TextBox.Text = Copy-ABProjectAsset -Source $SelectedPath -ProjectPath $project -Replace:$replace
+	$ui.StatusText.Text = if ($target.Identical) { "Using the identical $kind already in $($target.Relative)" } else { "Copied $SelectedPath to $($target.Relative)" }
 }
 
 function Show-TaskDetail([string] $TaskName) {

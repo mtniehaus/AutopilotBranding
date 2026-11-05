@@ -157,3 +157,98 @@ function Update-ABAssetBase {
 		}
 	}
 }
+
+
+function Test-ABSameContent {
+	# Returns $true if two files, or two folders (recursively), have the same content
+	param (
+		[Parameter(Mandatory = $true)] [string] $A,
+		[Parameter(Mandatory = $true)] [string] $B
+	)
+
+	if ((Test-Path -LiteralPath $A -PathType Leaf) -and (Test-Path -LiteralPath $B -PathType Leaf)) {
+		return (Get-FileHash -LiteralPath $A).Hash -eq (Get-FileHash -LiteralPath $B).Hash
+	}
+	if ((Test-Path -LiteralPath $A -PathType Container) -and (Test-Path -LiteralPath $B -PathType Container)) {
+		$filesA = @(Get-ChildItem -LiteralPath $A -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($A.TrimEnd('\', '/').Length + 1) } | Sort-Object)
+		$filesB = @(Get-ChildItem -LiteralPath $B -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($B.TrimEnd('\', '/').Length + 1) } | Sort-Object)
+		if (($filesA -join '|') -ne ($filesB -join '|')) {
+			return $false
+		}
+		foreach ($relative in $filesA) {
+			if ((Get-FileHash -LiteralPath (Join-Path $A $relative)).Hash -ne (Get-FileHash -LiteralPath (Join-Path $B $relative)).Hash) {
+				return $false
+			}
+		}
+		return $true
+	}
+	return $false
+}
+
+
+function Get-ABProjectAssetTarget {
+	<#
+	.SYNOPSIS
+	Describes where a file or folder would go when copied into a project's Assets folder.
+	.OUTPUTS
+	AssetsFolder, Destination (full path), Relative (path relative to the project), InAssets (the source is already in
+	the Assets folder), Exists (the destination exists) and Identical (the destination has the same content).
+	#>
+	param (
+		[Parameter(Mandatory = $true)] [string] $Source,
+		[Parameter(Mandatory = $true)] [string] $ProjectPath
+	)
+
+	$Source = ConvertTo-ABFullPath $Source
+	$assets = Join-Path (ConvertTo-ABFullPath $ProjectPath) 'Assets'
+	$inAssets = (Test-ABPathUnder -Path $Source -Folder $assets) -and -not ($Source.TrimEnd('\', '/') -eq $assets.TrimEnd('\', '/'))
+	if ($inAssets) {
+		$destination = $Source
+	} else {
+		$destination = Join-Path $assets (Split-Path -Path $Source -Leaf)
+	}
+	$exists = Test-Path -LiteralPath $destination
+	[pscustomobject]@{
+		AssetsFolder = $assets
+		Destination  = $destination
+		Relative     = Get-ABRelativePath -Path $destination -BasePath $ProjectPath
+		InAssets     = $inAssets
+		Exists       = $exists
+		Identical    = $inAssets -or ($exists -and (Test-ABSameContent -A $Source -B $destination))
+	}
+}
+
+
+function Copy-ABProjectAsset {
+	<#
+	.SYNOPSIS
+	Copies a file or folder into a project's Assets folder and returns its path relative to the project.
+	.PARAMETER Replace
+	Replace an existing file or folder with the same name (a folder is replaced completely).
+	#>
+	param (
+		[Parameter(Mandatory = $true)] [string] $Source,
+		[Parameter(Mandatory = $true)] [string] $ProjectPath,
+		[switch] $Replace
+	)
+
+	$target = Get-ABProjectAssetTarget -Source $Source -ProjectPath $ProjectPath
+	if ($target.InAssets -or $target.Identical) {
+		return $target.Relative
+	}
+	if ($target.Exists) {
+		if (-not $Replace) {
+			throw "$($target.Destination) already exists; specify -Replace to replace it."
+		}
+		Remove-Item -LiteralPath $target.Destination -Recurse -Force
+	}
+	if (-not (Test-Path -LiteralPath $target.AssetsFolder)) {
+		New-Item -Path $target.AssetsFolder -ItemType Directory -Force | Out-Null
+	}
+	if (Test-Path -LiteralPath $Source -PathType Container) {
+		Copy-Item -LiteralPath $Source -Destination $target.Destination -Recurse -Force
+	} else {
+		Copy-Item -LiteralPath $Source -Destination $target.Destination -Force
+	}
+	return $target.Relative
+}
