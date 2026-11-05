@@ -244,21 +244,50 @@ AutopilotBranding module also runs on devices inside the package, where it isn't
 
 ## Web builder
 
-`web\` contains a static web page with the same model as the builder UI. You pick tasks and settings, add your
-files, and generate `AutopilotBranding.intunewin`, all in the browser. Nothing is uploaded, and it can be hosted on
-GitHub Pages or any static web server.
+The web builder is a web page with the same model as the builder UI. You pick tasks and settings, add your files,
+and generate `AutopilotBranding.intunewin`, all in the browser, with nothing to install:
 
-- **Projects:** a project starts from the default template. **Save project** downloads it as a `.zip` with the
-  same layout as a project folder (`AutopilotBranding.json` + `Assets\`). **Open…** loads it again, or loads a
-  configuration `.json`. A saved project can also be extracted and used with the PowerShell module, and the other
-  way around.
-- **Files:** **Add file…** and **Add folder…** copy what you pick into the project's `Assets`. A different file with
-  the same name is only replaced after you confirm. **Project files** lists everything in the project.
-- **Generate .intunewin:** builds the same package as `New-AutopilotBrandingPackage`. It contains the generic
-  runner, the module, the files used by enabled tasks, and the configuration. **Download output** downloads the
-  package's content as a `.zip`, so you can inspect it.
+**https://mtniehaus.github.io/AutopilotBranding/**
 
-How it works:
+Everything runs on your computer: your files and settings are never uploaded. It works in current versions of
+Edge, Chrome and Firefox. It always matches the module on `main`, so its tasks and help text are the same as in the
+current module.
+
+### Using the web builder
+
+1. **Open the page.** It starts with a new project made from the default template: the default configuration and
+   sample files (theme, wallpaper, lock screen image, Start and taskbar layouts, and so on). To continue earlier
+   work, click **Open…** and pick a project `.zip` you saved before, or a configuration `.json`.
+2. **Choose the tasks.** The tasks are listed on the left, in the order they run. Tick the ones that should run.
+   **All** and **None** select or clear every task.
+3. **Set the parameters.** Select a task to see its description and parameters on the right:
+   - check boxes for on/off settings;
+   - drop-down lists for fixed choices;
+   - one value per line for lists (apps to remove, WinGet packages, features);
+   - text boxes for everything else.
+
+   The default value is shown under each parameter, and required parameters are marked.
+4. **Add your files.** For a file or folder parameter, such as the wallpaper or the Start layout, click
+   **Add file…** or **Add folder…**. The file or folder is copied into the project's `Assets`, and the parameter
+   points to it. If `Assets` already has a different file with the same name, the page asks before replacing it.
+   Under each file parameter, "In the project" or "Not in the project" shows whether the file is there.
+   **Project files** at the bottom of the task list shows every file in the project; you can add, download or
+   remove files there.
+5. **Check it.** **Validate** lists any problems, such as a required value that's missing or a file that isn't in
+   the project. Tasks with problems are marked in the list.
+6. **Save the project.** **Save project** downloads the configuration and all of its files as a `.zip`. The page
+   doesn't keep anything between visits, so save before you close it; you're warned about unsaved changes. The
+   `.zip` has the same layout as a project folder (`AutopilotBranding.json` + `Assets\`), so you can also extract
+   it and use it with the PowerShell module (`Show-AutopilotBrandingBuilder -ProjectPath`,
+   `Build-AutopilotBranding -ProjectPath`). A PowerShell project zipped up can be opened in the page the same way.
+7. **Generate the package.** **Generate .intunewin** downloads `AutopilotBranding.intunewin`. It's the same
+   package `New-AutopilotBrandingPackage` makes: the runner script, the module, the files used by enabled tasks,
+   and the configuration. **Download output** downloads the same content as a plain `.zip` if you want to look
+   inside.
+8. **Add it to Intune** as a Windows app (Win32), with the commands and detection rule in [Using](#using). The page
+   shows them when the package is generated.
+
+### How it works
 
 - **Task data:** `web\scripts\Export-WebData.ps1` exports the task definitions, the module files and the template
   from the module into `web\dist\data`. The page always matches the module version it packages.
@@ -266,11 +295,14 @@ How it works:
   Web Crypto API (AES-256-CBC, HMAC-SHA256, SHA-256).
 - **Format checks:** Microsoft doesn't document the .intunewin format. CI decodes a web-generated package and
   compares it with the one SvRooij.ContentPrep makes from the same configuration: same files, bytes, configuration
-  and `Detection.xml` structure. That check is in `web\test\Test-WebPackage.ps1`.
+  and `Detection.xml` structure. That check is in `web\test\Test-WebPackage.ps1`. Packages from the web builder
+  have also been uploaded to Intune and installed with Autopilot.
 - **Limits:** packages are built in memory. Packages larger than about 4 GB aren't supported (no zip64), and very
-  large language packs are slow.
+  large language packs are slow. Importing a v3 `Config.xml` is only available in the PowerShell builder.
 
-Building and testing it locally (Node.js 22 and PowerShell):
+### Running or hosting it yourself
+
+To run the page from your own copy (Node.js 22 and PowerShell), for example after adding a task to the module:
 
 ```powershell
 cd web
@@ -282,8 +314,12 @@ npx serve dist                     # or any static server; open the page on loca
 node test\e2e.mjs                  # browser test (needs Playwright: npm install --no-save playwright)
 ```
 
-`.github\workflows\pages.yml` builds and tests the site on every push and deploys it from `main` to GitHub Pages.
-To turn deployment on, set **Settings > Pages > Source** to **GitHub Actions**.
+Serve the page from a web server, not as a file: it loads its data with `fetch`, and the browser only allows its
+encryption API on `https://` or `localhost`. `dist\` can be copied to any static web host.
+
+`.github\workflows\pages.yml` builds and tests the site on every push, and deploys it from `main` to GitHub Pages
+(**Settings > Pages > Source** must be **GitHub Actions**). In a fork, the page is published at
+`https://<owner>.github.io/<repository>/`.
 
 ## Using
 
@@ -386,7 +422,8 @@ parameters point at the files that sit next to the old `Config.xml`.
     output folder and the `.intunewin` package.
   - **A generic runner script.** It's the same for every package; it reads the packaged configuration and runs each
     enabled task, logging each task's result and continuing after a failure.
-  - **A static web builder** (`web\`). It configures tasks, adds files and generates the `.intunewin` in the browser.
+  - **A static web builder** (`web\`, hosted at https://mtniehaus.github.io/AutopilotBranding/). It configures tasks,
+    adds files and generates the `.intunewin` in the browser.
 
   Other changes:
   - Packages are self-contained: every file a task uses is copied into the package.
