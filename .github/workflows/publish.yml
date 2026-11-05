@@ -68,10 +68,37 @@ jobs:
         mkdir Build
         copy Project\AutopilotBranding.intunewin Build
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Build and test the web builder, and generate a package with it
+      shell: pwsh
+      working-directory: web
+      run: |
+        npm ci
+        npm run build
+        & $env:PWSH76 -NoProfile -NonInteractive -File scripts/Export-WebData.ps1
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        npm test
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        node dist-node/generate.mjs --data dist/data --out ../Project/web.intunewin
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+    - name: Check the web package against SvRooij.ContentPrep's (Windows PowerShell 5.1)
+      shell: cmd
+      run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File web\test\Test-WebPackage.ps1 -WebPackage Project\web.intunewin -ReferencePackage Project\AutopilotBranding.intunewin -ReferenceOutput Project\Output
+
+    - name: Check the web package against SvRooij.ContentPrep's (PowerShell 7.6)
+      shell: cmd
+      run: '"%PWSH76%" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File web\test\Test-WebPackage.ps1 -WebPackage Project\web.intunewin -ReferencePackage Project\AutopilotBranding.intunewin -ReferenceOutput Project\Output'
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: AutopilotBranding
         path: |
           Project/AutopilotBranding.intunewin
+          Project/web.intunewin
           Project/Output

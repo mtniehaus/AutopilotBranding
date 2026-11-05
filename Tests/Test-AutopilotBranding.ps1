@@ -81,7 +81,7 @@ Write-Host ''
 Test-Case 'All PowerShell files parse without errors' {
 	$problems = @()
 	$files = Get-ChildItem -Path $repoRoot -Recurse -Include *.ps1, *.psm1, *.psd1 |
-		Where-Object { $_.FullName -notlike (Join-Path $repoRoot 'Output\*') -and $_.FullName -notlike (Join-Path $repoRoot 'Project\*') }
+		Where-Object { $_.FullName -notlike (Join-Path $repoRoot 'Output\*') -and $_.FullName -notlike (Join-Path $repoRoot 'Project\*') -and $_.FullName -notlike (Join-Path $repoRoot 'web\node_modules\*') }
 	foreach ($file in $files) {
 		$tokens = $null
 		$errors = $null
@@ -246,7 +246,7 @@ Test-Case 'Get-ABTaskInvocation passes only non-default values and resolves file
 	$errors = $null
 	[System.Management.Automation.Language.Parser]::ParseInput($runner, [ref]$null, [ref]$errors) | Out-Null
 	Assert-True ($errors.Count -eq 0) "Runner parse errors: $($errors[0].Message)"
-	Assert-True ($runner -match "Invoke-AutopilotBranding -ConfigPath \(Join-Path \$PSScriptRoot 'AutopilotBranding.json'\)") 'Runner does not call Invoke-AutopilotBranding'
+	Assert-True ($runner -match 'Invoke-AutopilotBranding -ConfigPath \(Join-Path \$PSScriptRoot ''AutopilotBranding\.json''\)') 'Runner does not call Invoke-AutopilotBranding'
 }
 
 $project = Join-Path $temp 'Project'

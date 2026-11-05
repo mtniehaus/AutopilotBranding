@@ -56,6 +56,7 @@ is ignored by git, or the folder you pass to them. They create the project from 
 ShowBuilder.cmd [project]         Loads the module and runs Show-AutopilotBrandingBuilder on .\Project (or [project])
 makeapp.cmd [project]             Loads the module and builds .\Project (or [project]) into Output and .intunewin
 Tests\Test-AutopilotBranding.ps1  Automated tests (run with each PowerShell version)
+web\                              Static web builder (TypeScript), see Web builder
 Module\AutopilotBranding\
     AutopilotBranding.psd1/.psm1  Module manifest and loader
     Template\                     Default project template: AutopilotBranding.json (equivalent to the v3 Config.xml
@@ -240,6 +241,49 @@ AutopilotBranding module also runs on devices inside the package, where it isn't
 
 - Run `makeapp.cmd [project folder]`. It builds `.\Project`, or the given folder, creating it from the template if
   needed. The result is `<project>\Output` and `<project>\AutopilotBranding.intunewin`.
+
+## Web builder
+
+`web\` contains a static web page with the same model as the builder UI. You pick tasks and settings, add your
+files, and generate `AutopilotBranding.intunewin`, all in the browser. Nothing is uploaded, and it can be hosted on
+GitHub Pages or any static web server.
+
+- **Projects:** a project starts from the default template. **Save project** downloads it as a `.zip` with the
+  same layout as a project folder (`AutopilotBranding.json` + `Assets\`). **Open…** loads it again, or loads a
+  configuration `.json`. A saved project can also be extracted and used with the PowerShell module, and the other
+  way around.
+- **Files:** **Add file…** and **Add folder…** copy what you pick into the project's `Assets`. A different file with
+  the same name is only replaced after you confirm. **Project files** lists everything in the project.
+- **Generate .intunewin:** builds the same package as `New-AutopilotBrandingPackage`. It contains the generic
+  runner, the module, the files used by enabled tasks, and the configuration. **Download output** downloads the
+  package's content as a `.zip`, so you can inspect it.
+
+How it works:
+
+- **Task data:** `web\scripts\Export-WebData.ps1` exports the task definitions, the module files and the template
+  from the module into `web\dist\data`. The page always matches the module version it packages.
+- **Packaging:** the package is built with [fflate](https://github.com/101arrowz/fflate) (zip) and the browser's
+  Web Crypto API (AES-256-CBC, HMAC-SHA256, SHA-256).
+- **Format checks:** Microsoft doesn't document the .intunewin format. CI decodes a web-generated package and
+  compares it with the one SvRooij.ContentPrep makes from the same configuration: same files, bytes, configuration
+  and `Detection.xml` structure. That check is in `web\test\Test-WebPackage.ps1`.
+- **Limits:** packages are built in memory. Packages larger than about 4 GB aren't supported (no zip64), and very
+  large language packs are slow.
+
+Building and testing it locally (Node.js 22 and PowerShell):
+
+```powershell
+cd web
+npm ci
+npm run build                      # dist\ (page) and dist-node\generate.mjs (command-line generator)
+pwsh -File scripts\Export-WebData.ps1
+npm test                           # generates packages and decodes them with node:crypto
+npx serve dist                     # or any static server; open the page on localhost
+node test\e2e.mjs                  # browser test (needs Playwright: npm install --no-save playwright)
+```
+
+`.github\workflows\pages.yml` builds and tests the site on every push and deploys it from `main` to GitHub Pages.
+To turn deployment on, set **Settings > Pages > Source** to **GitHub Actions**.
 
 ## Using
 

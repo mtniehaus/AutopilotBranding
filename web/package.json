@@ -1,0 +1,21 @@
+{
+  "name": "autopilot-branding-web",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Static web builder for Autopilot Branding: configure tasks, add assets, and generate the .intunewin package in the browser.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "fflate": "0.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}

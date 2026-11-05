@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Autopilot Branding Builder</title>
+	<meta name="description" content="Configure Autopilot Branding tasks, add your files, and generate the Intune .intunewin package, all in your browser.">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<header class="app-header">
+		<div class="brand">
+			<h1>Autopilot Branding Builder</h1>
+			<span id="project-name" class="project-name"></span>
+		</div>
+		<nav class="toolbar" aria-label="Project">
+			<button type="button" id="new-project" title="Start a new project from the default template (configuration and sample files)">New project</button>
+			<button type="button" id="open-project" title="Open a project .zip (AutopilotBranding.json and Assets) or a configuration .json">Open…</button>
+			<button type="button" id="save-project" title="Download the project (configuration and files) as a .zip you can open again later">Save project</button>
+			<span class="separator" aria-hidden="true"></span>
+			<button type="button" id="validate" title="Check the configuration for problems">Validate</button>
+			<button type="button" id="download-output" title="Download the content of the package as a .zip, to inspect it">Download output</button>
+			<button type="button" id="generate" class="primary" title="Generate AutopilotBranding.intunewin">Generate .intunewin</button>
+		</nav>
+	</header>
+
+	<main class="layout">
+		<aside class="sidebar">
+			<div class="sidebar-head">
+				<h2>Tasks</h2>
+				<span class="sidebar-actions">
+					<button type="button" id="all-tasks" class="link">All</button>
+					<button type="button" id="no-tasks" class="link">None</button>
+				</span>
+			</div>
+			<ul id="task-list" class="task-list" aria-label="Configuration tasks"></ul>
+			<button type="button" id="show-files" class="files-entry">Project files</button>
+		</aside>
+		<section id="details" class="details" aria-live="polite">
+			<p class="placeholder">Loading…</p>
+		</section>
+	</main>
+
+	<footer class="status-bar">
+		<span id="status">Everything runs in your browser; your files are never uploaded.</span>
+	</footer>
+
+	<input type="file" id="open-input" accept=".zip,.json" hidden>
+	<dialog id="dialog">
+		<form method="dialog">
+			<h2 id="dialog-title"></h2>
+			<div id="dialog-body"></div>
+			<menu><button value="ok" class="primary">OK</button></menu>
+		</form>
+	</dialog>
+
+	<script type="module" src="app.js"></script>
+</body>
+</html>
