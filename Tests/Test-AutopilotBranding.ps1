@@ -225,7 +225,23 @@ Test-Case 'Legacy Config.xml converts to an equivalent configuration' {
 Test-Case 'Runner script only passes non-default values and parses' {
 	$configuration = Read-ABConfiguration -Path $defaultConfig
 	$configuration.Tasks['Set-ABTimeZone'].Parameters.TimeZone = "O'Brien Standard Time"
-	$runner = Get-ABRunnerScript -Configuration $configuration -TaskDefinitions @(Get-ABTaskDefinition) -AssetMap @{ 'Set-ABTheme|ThemePath' = 'Autopilot.theme' }
+	# Like New-ABOutput, map every file/folder parameter of the enabled tasks to its name in the output's Assets folder
+	$definitions = @(Get-ABTaskDefinition)
+	$assetMap = @{}
+	foreach ($definition in $definitions) {
+		if (-not $configuration.Tasks[$definition.Name].Enabled) { continue }
+		foreach ($p in ($definition.Parameters | Where-Object { $_.AssetKind })) {
+			$value = $configuration.Tasks[$definition.Name].Parameters[$p.Name]
+			if ($value) { $assetMap["$($definition.Name)|$($p.Name)"] = Split-Path $value -Leaf }
+		}
+	}
+	$runner = Get-ABRunnerScript -Configuration $configuration -TaskDefinitions $definitions -AssetMap $assetMap
+
+	# A file/folder parameter missing from the asset map is refused (it wouldn't be in the package)
+	$assetMap.Remove('Set-ABTheme|WallpaperPath')
+	$threw = $false
+	try { Get-ABRunnerScript -Configuration $configuration -TaskDefinitions $definitions -AssetMap $assetMap | Out-Null } catch { $threw = $_.Exception.Message -match 'WallpaperPath' }
+	Assert-True $threw 'A file parameter missing from the asset map was not refused'
 	$errors = $null
 	[System.Management.Automation.Language.Parser]::ParseInput($runner, [ref]$null, [ref]$errors) | Out-Null
 	Assert-True ($errors.Count -eq 0) "Runner parse errors: $($errors[0].Message)"
