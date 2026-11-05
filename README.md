@@ -320,10 +320,11 @@ changing how the app is set up.
   back to `Url` (x64) or `ArmUrl` (ARM64); with no `ArmUrl`, the update is then skipped on ARM64. ARM64 devices
   never use the x64 MSI (it breaks Edge and WebView2 there).
 - Per-user settings missing (theme, Start layout, widgets, search box): Windows creates a user's profile from the
-  default profile once, at that user's first sign-in. If the app runs after the user has signed in, that profile
-  already exists. That always happens with Autopilot device preparation (APv2), and with classic Autopilot when the
-  app isn't a blocking app in the Enrollment Status Page device phase. So the module also applies per-user settings
-  and files to existing user profiles; the log lists them as "Existing user profile". To turn that off, call
+  default profile once, at that user's first sign-in. If the app runs after that, the profile already exists and
+  doesn't get the default profile's changes. Make the app a blocking app: with classic Autopilot, add it to the
+  Enrollment Status Page's blocking apps (assigned to devices); with Autopilot device preparation (APv2), add it to
+  the allowed apps. Then it runs before the user's profile is created. As a safety net, the module also applies
+  per-user settings and files to user profiles that already exist; the log lists them as "Existing user profile". To turn that off, call
   `Start-AutopilotBranding -IncludeExistingProfiles $false`. Machine-wide alternatives that don't depend on profiles:
   `Disable-ABWidgets` (policy) and `Set-ABSearchBoxMode -UsePolicy`.
 - "The User Profile Service failed the sign-in": this happens if the default user registry hive is left loaded.

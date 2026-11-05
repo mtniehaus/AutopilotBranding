@@ -420,6 +420,21 @@ Test-Case 'Per-user settings go to the default profile and existing profiles (un
 	}
 }
 
+Test-Case 'Remove-ABOffice does nothing when no Office is installed' {
+	# On a CI runner without Office, it must skip without downloading or running the Office Deployment Tool
+	if (-not $isAdmin -or $env:GITHUB_ACTIONS -ne 'true') {
+		Write-Host '       Skipped: only runs elevated on a GitHub Actions runner' -ForegroundColor Yellow
+		return
+	}
+	if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration') {
+		Write-Host '       Skipped: Office is installed on this runner' -ForegroundColor Yellow
+		return
+	}
+	$output = Remove-ABOffice 6>&1 | Out-String
+	Assert-True ($output -match 'No Office products are installed') "Unexpected output: $output"
+	Assert-True ($output -notmatch 'Running ODT') 'The Office Deployment Tool was run'
+}
+
 Test-Case 'Generic runner runs a configuration end to end (-Force, three tasks) in this PowerShell version' {
 	# This changes the computer (registered owner, lock screen image), so it only runs on a CI runner
 	if (-not $isAdmin -or $env:GITHUB_ACTIONS -ne 'true') {
