@@ -79,11 +79,19 @@ function Dismount-ABDefaultUserHive {
 	}
 
 	if ($script:ABHiveRefCount -eq 0) {
-		Dismount-ABUserHives
-		if ($script:ABHiveLoadedByModule) {
-			Write-ABLog "Unloading default user registry hive"
-			Invoke-ABHiveUnload | Out-Null
-			$script:ABHiveLoadedByModule = $false
+		try {
+			Dismount-ABUserHives
+		}
+		catch {
+			Write-ABLog "Error unloading user profile registry hives: $_"
+		}
+		finally {
+			# Never leave the default user hive loaded (it breaks new profiles)
+			if ($script:ABHiveLoadedByModule) {
+				Write-ABLog "Unloading default user registry hive"
+				Invoke-ABHiveUnload | Out-Null
+				$script:ABHiveLoadedByModule = $false
+			}
 		}
 	}
 }

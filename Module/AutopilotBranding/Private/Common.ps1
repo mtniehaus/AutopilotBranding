@@ -6,7 +6,7 @@ $script:ABHiveRefCount = 0
 $script:ABHiveLoadedByModule = $false
 # Per-user changes also go to user profiles that already exist (see Start-AutopilotBranding -IncludeExistingProfiles)
 $script:ABIncludeExistingProfiles = $true
-$script:ABUserHives = New-Object System.Collections.Generic.List[object]
+$script:ABUserHives = @()
 
 
 function Get-ABDefaultUserProfilePath {
@@ -185,11 +185,11 @@ function Get-ABExistingUserProfile {
 function Mount-ABUserHives {
 	# Makes the registry of every existing user profile available: loaded hives are used through HKEY_USERS, others
 	# are loaded under HKLM\ABUser<n> (and unloaded again by Dismount-ABUserHives).
-	$script:ABUserHives = New-Object System.Collections.Generic.List[object]
+	$script:ABUserHives = @()
 	$index = 0
 	foreach ($userProfile in @(Get-ABExistingUserProfile)) {
 		if ($userProfile.Loaded) {
-			$script:ABUserHives.Add([pscustomobject]@{ Root = "HKU\$($userProfile.Sid)"; Name = $userProfile.ProfilePath; ProfilePath = $userProfile.ProfilePath; LoadedByModule = $false })
+			$script:ABUserHives += [pscustomobject]@{ Root = "HKU\$($userProfile.Sid)"; Name = $userProfile.ProfilePath; ProfilePath = $userProfile.ProfilePath; LoadedByModule = $false }
 			Write-ABLog "Existing user profile (signed in): $($userProfile.ProfilePath)"
 			continue
 		}
@@ -203,19 +203,19 @@ function Mount-ABUserHives {
 			Write-ABLog "Unable to load the registry hive of $($userProfile.ProfilePath), skipping it: $output"
 			continue
 		}
-		$script:ABUserHives.Add([pscustomobject]@{ Root = $root; Name = $userProfile.ProfilePath; ProfilePath = $userProfile.ProfilePath; LoadedByModule = $true })
+		$script:ABUserHives += [pscustomobject]@{ Root = $root; Name = $userProfile.ProfilePath; ProfilePath = $userProfile.ProfilePath; LoadedByModule = $true }
 		Write-ABLog "Existing user profile (registry loaded as $root): $($userProfile.ProfilePath)"
 	}
 }
 
 
 function Dismount-ABUserHives {
-	foreach ($hive in @($script:ABUserHives)) {
+	foreach ($hive in $script:ABUserHives) {
 		if ($hive.LoadedByModule) {
 			Invoke-ABHiveUnload -Root $hive.Root -Description "registry hive of $($hive.Name)" | Out-Null
 		}
 	}
-	$script:ABUserHives = New-Object System.Collections.Generic.List[object]
+	$script:ABUserHives = @()
 }
 
 
@@ -234,7 +234,7 @@ function Get-ABUserRegistryRoots {
 		[pscustomobject]@{ Root = Get-ABDefaultUserRegistryRoot; Name = 'default user' }
 	}
 	if ($script:ABIncludeExistingProfiles) {
-		foreach ($hive in @($script:ABUserHives)) {
+		foreach ($hive in $script:ABUserHives) {
 			$hive
 		}
 	}
