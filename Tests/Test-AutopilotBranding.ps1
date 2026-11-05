@@ -132,7 +132,7 @@ $taskNames = @($taskFiles | ForEach-Object { $_.BaseName -replace '^\d+-', '' })
 
 Test-Case 'Exports the cmdlets, tasks and builder functions, and nothing private' {
 	$exported = @((Get-Command -Module AutopilotBranding).Name)
-	$expected = @('Show-AutopilotBrandingBuilder', 'New-AutopilotBrandingPackage', 'Build-AutopilotBranding', 'New-AutopilotBrandingProject', 'Get-ABTemplatePath', 'Test-ABOutputSelfContained', 'Start-AutopilotBranding', 'Stop-AutopilotBranding',
+	$expected = @('Show-AutopilotBrandingBuilder', 'New-AutopilotBrandingPackage', 'Build-AutopilotBranding', 'New-AutopilotBrandingProject', 'Get-ABTemplatePath', 'Test-ABOutputSelfContained', 'Invoke-AutopilotBranding', 'Get-ABTaskInvocation', 'Start-AutopilotBranding', 'Stop-AutopilotBranding',
 		'Invoke-ABTask', 'Write-ABLog', 'Mount-ABDefaultUserHive', 'Dismount-ABDefaultUserHive', 'Get-ABTaskDefinition',
 		'Read-ABConfiguration', 'Save-ABConfiguration', 'Test-ABConfiguration', 'New-ABOutput', 'New-ABIntuneWinPackage',
 		'ConvertFrom-ABLegacyConfig') + $taskNames
@@ -222,34 +222,31 @@ Test-Case 'Legacy Config.xml converts to an equivalent configuration' {
 	Assert-Equal @('Google.Chrome', '9WZDNCRD29V9') $c.Tasks['Install-ABWinGetPackages'].Parameters.PackageIds 'PackageIds'
 }
 
-Test-Case 'Runner script only passes non-default values and parses' {
+Test-Case 'Get-ABTaskInvocation passes only non-default values and resolves files; the runner is generic' {
 	$configuration = Read-ABConfiguration -Path $defaultConfig
 	$configuration.Tasks['Set-ABTimeZone'].Parameters.TimeZone = "O'Brien Standard Time"
-	# Like New-ABOutput, map every file/folder parameter of the enabled tasks to its name in the output's Assets folder
-	$definitions = @(Get-ABTaskDefinition)
-	$assetMap = @{}
-	foreach ($definition in $definitions) {
-		if (-not $configuration.Tasks[$definition.Name].Enabled) { continue }
-		foreach ($p in ($definition.Parameters | Where-Object { $_.AssetKind })) {
-			$value = $configuration.Tasks[$definition.Name].Parameters[$p.Name]
-			if ($value) { $assetMap["$($definition.Name)|$($p.Name)"] = Split-Path $value -Leaf }
+	$invocations = @(Get-ABTaskInvocation -Configuration $configuration -BasePath $templateDir)
+	$names = @($invocations | ForEach-Object { $_.Name })
+	$enabled = @($taskNames | Where-Object { $configuration.Tasks[$_].Enabled })
+	Assert-Equal $enabled $names 'Invoked tasks (enabled, in order)'
+	$theme = $invocations | Where-Object { $_.Name -eq 'Set-ABTheme' }
+	Assert-Equal (Join-Path $templateDir 'Assets\Autopilot.theme') $theme.Parameters.ThemePath 'ThemePath resolved against the base path'
+	Assert-True (-not $theme.Parameters.Contains('UpdateThemeWallpaper')) 'Default value passed'
+	Assert-Equal "O'Brien Standard Time" ($invocations | Where-Object { $_.Name -eq 'Set-ABTimeZone' }).Parameters.TimeZone 'Non-default value'
+	Assert-True ($names -notcontains 'Set-ABStartAlignment') 'Disabled task invoked'
+	foreach ($invocation in $invocations) {
+		$cmd = Get-Command $invocation.Name
+		foreach ($key in $invocation.Parameters.Keys) {
+			Assert-True $cmd.Parameters.ContainsKey($key) "$($invocation.Name) has no parameter -$key"
 		}
 	}
-	$runner = Get-ABRunnerScript -Configuration $configuration -TaskDefinitions $definitions -AssetMap $assetMap
 
-	# A file/folder parameter missing from the asset map is refused (it wouldn't be in the package)
-	$assetMap.Remove('Set-ABTheme|WallpaperPath')
-	$threw = $false
-	try { Get-ABRunnerScript -Configuration $configuration -TaskDefinitions $definitions -AssetMap $assetMap | Out-Null } catch { $threw = $_.Exception.Message -match 'WallpaperPath' }
-	Assert-True $threw 'A file parameter missing from the asset map was not refused'
+	# The runner script is the same for every configuration and just calls Invoke-AutopilotBranding
+	$runner = Get-ABRunnerScript
 	$errors = $null
 	[System.Management.Automation.Language.Parser]::ParseInput($runner, [ref]$null, [ref]$errors) | Out-Null
 	Assert-True ($errors.Count -eq 0) "Runner parse errors: $($errors[0].Message)"
-	Assert-True ($runner -match "Invoke-ABTask -Name 'Set-ABTheme'") 'Set-ABTheme not called'
-	Assert-True ($runner -notmatch "Invoke-ABTask -Name 'Set-ABStartAlignment'") 'Disabled task called'
-	Assert-True ($runner -match "TimeZone = 'O''Brien Standard Time'") 'Quoted string value not emitted'
-	Assert-True ($runner -match "ThemePath = \(Join-Path \`$AssetRoot 'Autopilot.theme'\)") 'Asset path not emitted'
-	Assert-True ($runner -notmatch 'UpdateThemeWallpaper') 'Default value emitted'
+	Assert-True ($runner -match "Invoke-AutopilotBranding -ConfigPath \(Join-Path \$PSScriptRoot 'AutopilotBranding.json'\)") 'Runner does not call Invoke-AutopilotBranding'
 }
 
 $project = Join-Path $temp 'Project'
@@ -286,9 +283,7 @@ Test-Case 'Build-AutopilotBranding (alias) builds a project into its Output fold
 	Assert-True (-not (Test-Path (Join-Path $script:build.OutputPath 'AutopilotBranding\Template'))) 'The module template was copied into the output'
 	Assert-Equal (Join-Path $project 'AutopilotBranding.intunewin') $script:build.Package 'Package path'
 	Assert-True ((Get-Item $script:build.Package).Length -gt 10000) 'Package is too small'
-	$errors = $null
-	[System.Management.Automation.Language.Parser]::ParseFile($script:build.RunnerScript, [ref]$null, [ref]$errors) | Out-Null
-	Assert-True ($errors.Count -eq 0) "Runner parse errors: $($errors[0].Message)"
+	Assert-Equal (Get-FileHash (Join-Path $repoRoot 'Module\AutopilotBranding\Runner\AutopilotBranding.ps1')).Hash (Get-FileHash $script:build.RunnerScript).Hash 'Runner script is not the generic one'
 	$problems = @(Test-ABConfiguration -Configuration (Read-ABConfiguration -Path (Join-Path $script:build.OutputPath 'AutopilotBranding.json')) -BasePath $script:build.OutputPath)
 	Assert-True ($problems.Count -eq 0) 'Output configuration does not validate against the copied assets'
 	$selfContained = @(Test-ABOutputSelfContained -OutputPath $script:build.OutputPath)
@@ -312,9 +307,10 @@ Test-Case 'Files outside the project are copied into the package and referenced 
 
 	$result = New-ABOutput -Configuration (Read-ABConfiguration -Path $configPath) -BasePath $temp -OutputPath (Join-Path $temp 'ExternalOutput') -Force
 	Assert-True (Test-Path (Join-Path $result.OutputPath 'Assets\Outside Wallpaper.jpg')) 'External file not copied into the output'
-	$runner = Get-Content $result.RunnerScript -Raw
-	Assert-True ($runner -match "WallpaperPath = \(Join-Path \`$AssetRoot 'Outside Wallpaper.jpg'\)") 'External file not referenced relative to the runner'
-	Assert-True ($runner -notmatch [regex]::Escape($external)) 'Runner refers to the external folder'
+	$packagedConfig = Read-ABConfiguration -Path (Join-Path $result.OutputPath 'AutopilotBranding.json')
+	Assert-Equal 'Assets\Outside Wallpaper.jpg' $packagedConfig.Tasks['Set-ABTheme'].Parameters.WallpaperPath 'Packaged WallpaperPath'
+	$theme = Get-ABTaskInvocation -Configuration $packagedConfig -BasePath $result.OutputPath | Where-Object { $_.Name -eq 'Set-ABTheme' }
+	Assert-Equal (Join-Path $result.OutputPath 'Assets\Outside Wallpaper.jpg') $theme.Parameters.WallpaperPath 'WallpaperPath on the device resolves inside the package'
 	Assert-True ((Get-Content (Join-Path $result.OutputPath 'AutopilotBranding.json') -Raw) -notmatch [regex]::Escape($temp.Replace('\', '\\'))) 'Packaged configuration refers to the build machine'
 	Assert-True (@(Test-ABOutputSelfContained -OutputPath $result.OutputPath).Count -eq 0) 'Output not self-contained'
 
@@ -373,6 +369,42 @@ Test-Case 'Generated runner script runs (log, tag file, OOBE check) in this Powe
 	Assert-True ($log -match 'AutopilotBranding module v') "Module not loaded by the runner: $log"
 	Assert-True ($log -match 'OOBE is completed, bailing out') "OOBE check not logged: $log"
 	Assert-True (Test-Path (Join-Path $logFolder 'AutopilotBranding.ps1.tag')) 'Tag file not created'
+}
+
+Test-Case 'Generic runner runs a configuration end to end (-Force, two tasks) in this PowerShell version' {
+	# This changes the computer (registered owner, lock screen image), so it only runs on a CI runner
+	if (-not $isAdmin -or $env:GITHUB_ACTIONS -ne 'true') {
+		Write-Host '       Skipped: only runs elevated on a GitHub Actions runner (it changes the computer)' -ForegroundColor Yellow
+		return
+	}
+	$ntKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+	$cspKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'
+	$original = Get-ItemProperty $ntKey
+	try {
+		$configuration = New-ABConfiguration
+		foreach ($key in @($configuration.Tasks.Keys)) { $configuration.Tasks[$key].Enabled = $false }
+		$configuration.Tasks['Set-ABRegisteredOwner'].Enabled = $true
+		$configuration.Tasks['Set-ABRegisteredOwner'].Parameters.Owner = 'AB Runner Test'
+		$configuration.Tasks['Set-ABRegisteredOwner'].Parameters.Organization = 'AB Test Org'
+		$configuration.Tasks['Set-ABLockScreen'].Enabled = $true
+		$configuration.Tasks['Set-ABLockScreen'].Parameters.ImagePath = Join-Path $project 'Assets\AutopilotLock.jpg'
+		$output = New-ABOutput -Configuration $configuration -BasePath $project -OutputPath (Join-Path $temp 'RunnerOutput') -Force
+		$log = & $psExe -NoProfile -ExecutionPolicy Bypass -File $output.RunnerScript -Force 2>&1 | Out-String
+		Assert-Equal 0 $LASTEXITCODE "Runner exit code (output: $log)"
+		Assert-True ($log -match 'Succeeded\s+Set-ABRegisteredOwner') "Set-ABRegisteredOwner did not succeed: $log"
+		Assert-True ($log -match 'Succeeded\s+Set-ABLockScreen') "Set-ABLockScreen did not succeed: $log"
+		$now = Get-ItemProperty $ntKey
+		Assert-Equal 'AB Runner Test' $now.RegisteredOwner 'RegisteredOwner'
+		Assert-Equal 'AB Test Org' $now.RegisteredOrganization 'RegisteredOrganization'
+		$lockImage = (Get-ItemProperty $cspKey).LockScreenImagePath
+		Assert-Equal "$($env:SystemRoot)\Web\Wallpaper\Autopilot\AutopilotLock.jpg" $lockImage 'Lock screen image (copied from the package Assets)'
+		Assert-True (Test-Path $lockImage) 'Lock screen image not copied'
+	}
+	finally {
+		Set-ItemProperty $ntKey -Name RegisteredOwner -Value ([string]$original.RegisteredOwner)
+		Set-ItemProperty $ntKey -Name RegisteredOrganization -Value ([string]$original.RegisteredOrganization)
+		Remove-ItemProperty $cspKey -Name LockScreenImagePath, LockScreenImageUrl, LockScreenImageStatus -ErrorAction SilentlyContinue
+	}
 }
 
 #endregion

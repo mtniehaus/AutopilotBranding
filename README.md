@@ -183,45 +183,43 @@ The package is self-contained:
 
 - Every file and folder that an enabled task uses is copied into the output's `Assets` folder, wherever it came
   from. That includes files outside the project.
-- The runner script passes those files relative to its own folder.
-- The packaged `AutopilotBranding.json` refers to them as `Assets\...`.
+- The packaged `AutopilotBranding.json` refers to them as `Assets\...`, relative to the package.
 - File settings of disabled tasks are cleared in the packaged configuration, because their files aren't included.
 
-Generation fails if anything still refers to a path outside the output folder. It warns about other values in the
-runner script that look like paths on the build computer. `Test-ABOutputSelfContained` runs the same check on any
+Generation fails if anything still refers to a path outside the output folder. It warns about other text settings
+of enabled tasks that look like paths on the build computer. `Test-ABOutputSelfContained` runs the same check on any
 output folder.
 
 The output folder contains:
 
 ```
-AutopilotBranding.ps1    Runner script: loads the module and calls each enabled task with its parameters
+AutopilotBranding.ps1    Runner script: the same for every configuration (loads the module, runs the configuration)
 AutopilotBranding\       The AutopilotBranding module
 Assets\                  Files and folders referenced by the configuration
 AutopilotBranding.json   The configuration that was used
 ```
 
-The runner script looks like this:
+The runner script is the same for every configuration. It ships in the module as `Runner\AutopilotBranding.ps1`:
 
 ```powershell
 Import-Module (Join-Path $PSScriptRoot 'AutopilotBranding\AutopilotBranding.psd1') -Force
 if (-not (Start-AutopilotBranding -Force:$Force)) { exit 0 }   # logging, tag file, OOBE check, load default user hive
 try {
-	Invoke-ABTask -Name 'Set-ABTheme' -ScriptBlock {
-		$parameters = @{
-			ThemePath = (Join-Path $AssetRoot 'Autopilot.theme')
-			WallpaperPath = (Join-Path $AssetRoot 'Autopilot.jpg')
-		}
-		Set-ABTheme @parameters
-	}
-	...
+	Invoke-AutopilotBranding -ConfigPath (Join-Path $PSScriptRoot 'AutopilotBranding.json')
 } finally {
 	Stop-AutopilotBranding                                       # unload hive, task summary, stop logging
 }
 ```
 
-Each task runs inside `Invoke-ABTask`, so a failure in one task is logged and the remaining tasks still run. The
-log ends with a summary of every task's status. Parameters left at their default values are not written into
-the script.
+`Invoke-AutopilotBranding` reads the packaged configuration and calls each enabled task in order. File and folder
+settings are resolved against the package folder. Settings left at their default values aren't passed. Each task
+runs inside `Invoke-ABTask`, so a failure in one task is logged and the remaining tasks still run. The log lists
+each task's parameters and ends with a summary of every task's status. To see what a configuration would run
+without running it, use `Get-ABTaskInvocation`.
+
+Because only the configuration and the files differ between packages, any tool that writes a valid
+`AutopilotBranding.json` and puts the right files next to it can build a package. The [web builder](#web-builder)
+works this way.
 
 ## Building the Intune app
 
