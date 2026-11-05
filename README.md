@@ -1,7 +1,7 @@
 # Autopilot Branding
 
 This repository contains a PowerShell module, and a set of tools around it, that you can package into an Intune
-Win32 app to customize Windows devices during Windows Autopilot. (There's no reason it can't be used with other
+Win32 app to customize Windows 10 and Windows 11 devices during Windows Autopilot. (There's no reason it can't be used with other
 deployment processes too, e.g. MDT or ConfigMgr.)
 
 Starting with v4, the old single `AutopilotBranding.ps1` script and its `Config.xml` file have been replaced by:
@@ -372,9 +372,28 @@ parameters point at the files that sit next to the old `Config.xml`.
 - 2024-01-31: Added additional apps to remove, adding timestamps to log messages, cleaned up error logging.
 - 2024-04-27: Added logic to stop the Start menu from popping up each time a new user signs in.
 - 2024-12-26: Added support for removing FODs and disabling optional features.
-- 2026-11-04 (PR #100): The Edge update looks up the latest Stable MSI for x64 and ARM64 from the edgeupdates.microsoft.com API and verifies its hash.
 - 2026-11-03 (v3.3.2): Failures in one step no longer skip the rest; the default user hive is always unloaded; ARM64 fixes for Edge and the VC++ runtime; optional computer rename; optional PowerShell-based language settings; in-box app removal also removes installed packages; removed obsolete IE http/https associations.
-- v4.0.0 (dev): Restructured into the AutopilotBranding module (one cmdlet per task, settings as parameters), added the builder UI, JSON configuration, and generated runner script.
+- 2026-11-04 (PR #100): The Edge update looks up the latest Stable MSI for x64 and ARM64 from the edgeupdates.microsoft.com API and verifies its hash.
+- 2026-11-05 (v4.0): Restructured the whole setup. The single `AutopilotBranding.ps1` script and its `Config.xml`
+  file are replaced by:
+  - **The `AutopilotBranding` PowerShell module.** Each configuration task is a cmdlet in its own file, with its
+    settings as parameters. The module is self-contained and ready for the PowerShell Gallery.
+  - **JSON configurations and project folders.** `New-AutopilotBrandingProject` creates a project from the
+    template included in the module: the default configuration plus sample assets to customize. An existing
+    `Config.xml` can be imported.
+  - **A builder UI** (`Show-AutopilotBrandingBuilder`, started by `ShowBuilder.cmd`) and a headless builder
+    (`New-AutopilotBrandingPackage`, alias `Build-AutopilotBranding`, run by `makeapp.cmd`). Both generate the
+    output folder and the `.intunewin` package.
+  - **A generic runner script.** It's the same for every package; it reads the packaged configuration and runs each
+    enabled task, logging each task's result and continuing after a failure.
+  - **A static web builder** (`web\`). It configures tasks, adds files and generates the `.intunewin` in the browser.
+
+  Other changes:
+  - Packages are self-contained: every file a task uses is copied into the package.
+  - Per-user settings also apply to user profiles that already exist.
+  - New tasks for the v3.3.2 options: computer rename and PowerShell-based language settings.
+  - `Remove-ABOffice` skips devices without Office and reports Office Deployment Tool failures.
+  - Automated tests run with Windows PowerShell 5.1 and PowerShell 7.6.
 
 ## Suggestions?
 
