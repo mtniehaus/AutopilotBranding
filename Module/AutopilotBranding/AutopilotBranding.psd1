@@ -20,6 +20,12 @@
 			Tags         = @('intune', 'endpoint', 'autopilot', 'branding', 'windows')
 			LicenseUri   = 'https://github.com/mtniehaus/AutopilotBranding/blob/main/LICENSE'
 			ProjectUri   = 'https://github.com/mtniehaus/AutopilotBranding'
+
+			# New-AutopilotBrandingPackage / Show-AutopilotBrandingBuilder use New-IntuneWinPackage from this module to
+			# create the .intunewin file, and install it for the current user (version 0.4.0 or later) on first use.
+			# It isn't in RequiredModules: the module also runs on devices (inside the generated package), where only
+			# the configuration tasks are used and the content prep module isn't needed or installed.
+			ExternalModuleDependencies = @('SvRooij.ContentPrep.Cmdlet')
 			ReleaseNotes = @'
 v4.0.0 - Restructured the monolithic AutopilotBranding.ps1 script into a module with one cmdlet per
          configuration task.  Settings are now passed as cmdlet parameters (instead of Config.xml);

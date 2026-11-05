@@ -206,9 +206,10 @@ the script.
 
 ## Building the Intune app
 
-Packaging uses `New-IntuneWinPackage` from the SvRooij.ContentPrep.Cmdlet module. The module, and the NuGet
-package provider it needs, are installed for the current user from the PowerShell Gallery the first time you
-package. Every build creates the package. You can build in any of these ways:
+Packaging uses `New-IntuneWinPackage` from the SvRooij.ContentPrep.Cmdlet module, which the module manifest declares
+as an external module dependency. That module, and the NuGet package provider it needs, are installed for the
+current user from the PowerShell Gallery the first time you package. It isn't a required module, because the
+AutopilotBranding module also runs on devices inside the package, where it isn't needed. Every build creates the package. You can build in any of these ways:
 
 - In the UI, click **Generate output and .intunewin**.
 - From PowerShell:

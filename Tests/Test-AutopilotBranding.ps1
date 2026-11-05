@@ -122,6 +122,8 @@ Test-Case 'Module manifest is valid (for publishing to the PowerShell Gallery)' 
 	$info = Test-ModuleManifest -Path $manifest
 	Assert-True ($info.Version -ge [version]'4.0.0') "Unexpected version $($info.Version)"
 	Assert-True ($info.ExportedAliases.ContainsKey('Build-AutopilotBranding')) 'Alias not declared in the manifest'
+	Assert-True (@($info.PrivateData.PSData.ExternalModuleDependencies) -contains 'SvRooij.ContentPrep.Cmdlet') 'SvRooij.ContentPrep.Cmdlet not declared as an external module dependency'
+	Assert-True (@($info.RequiredModules).Count -eq 0) 'RequiredModules must stay empty (the module runs on devices without the content prep module)'
 	Assert-True (Test-Path (Join-Path $templateDir 'AutopilotBranding.json')) 'Template missing from the module'
 }
 
