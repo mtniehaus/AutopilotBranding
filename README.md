@@ -1,59 +1,370 @@
 # Autopilot Branding
 
-This repository contains a sample PowerShell script that can be packaged into an Intune Win32 app to customize Windows 10 devices via Windows Autopilot
-(although there's no reason it can't be used with other deployment processes, e.g. MDT or ConfigMgr).
+This repository contains a PowerShell module, and a set of tools around it, that you can package into an Intune
+Win32 app to customize Windows 10 and Windows 11 devices during Windows Autopilot. (There's no reason it can't be used with other
+deployment processes too, e.g. MDT or ConfigMgr.)
 
-## Capabilities
+Starting with v4, the old single `AutopilotBranding.ps1` script and its `Config.xml` file have been replaced by:
 
-These customizations are currently supported:
+- **The `AutopilotBranding` module** (`Module\AutopilotBranding`). Each configuration task is a cmdlet in its own
+  `.ps1` file, and its settings are passed as parameters instead of being read from a configuration file.
+- **A builder UI** (the `Show-AutopilotBrandingBuilder` cmdlet, started by `ShowBuilder.cmd`). It lists every
+  task with the parameters it supports. You pick the tasks to run and set the parameter values, then save your
+  choices to a JSON file. It also generates the output folder and packages it as an Intune Win32 app (`.intunewin`).
+- **A headless builder** (the `New-AutopilotBrandingPackage` cmdlet, also available as `Build-AutopilotBranding`,
+  run by `makeapp.cmd`). It does the same from a JSON
+  file without the UI, which is useful for CI.
+- **Projects** (the `New-AutopilotBrandingProject` cmdlet). The module includes a default template: the default
+  configuration and sample files such as the theme, wallpaper and layouts. A project is a folder created from that
+  template. It holds your configuration and your own versions of those files, and the output and `.intunewin` are
+  generated there. The module is self-contained, ready to be published to the PowerShell Gallery.
 
-- Customize start menu layout.  By default it will apply a simple two-icon layout (similiar to the default one on Windows 10 Enterprise 1903).
-- Configure background image.  A custom theme is deployed with a background image; the default user profile is then configured to use this theme.  (Note that this won't work if the user is enabled for Enterprise State Roaming and has previously configured a background image.)
-- Set time zone.  The time zone will be set to the specified time zone name (Pacific Standard Time by default).
-- Remove in-box provisioned apps.  A list of in-box provisioned apps will be removed.
-- Install updated OneDrive client per-machine.  To support the latest OneDrive features, the client will be updated and installed per-machine (instead of the per-user default).
-- Disable the Edge desktop icon.  When using OneDrive Known Folder Move, this can cause duplicate (and unnecessary) shortcuts to be synced.
-- Install language packs.  You can embed language pack CAB files into the MSI (place them into the LPs folder), and each will be automatically installed.  (In a perfect world, these would be pulled from Windows Update, but there's no simple way to do that, hence the need to include these in the MSI.  You can download the language pack ISO from MSDN or VLSC.)
-- Install features on demand (FOD).  Specify a list of features that you want to install, from the list at https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/features-on-demand-non-language-fod.  The needed components will be downloaded from Windows Update automatically and added to the running OS.
-- Remove features on demand (FOD). Specify a list of preinstalled Features on Demand to remove by their Capability Name, excluding the tilde characters and version number. Capability Names can be retrieved by running  `Get-WindowsCapability -Online` 
-- Disable Optional Features. Specify a list of optional features to disable by per their Feature Name. Feature Names can be retrieved by running  `Get-WindowsOptionalFeature -Online`
-- Configure language settings.  Adding a language pack isn't enough - you have to tell Windows that you want it to be configured for all users.  This is done through an XML file fed to INTL.CPL; customize the file as needed.  (Note this is commented out by default in the Config.xml file.)
-- Configure default apps.  Import a list of file associations (as created by manually configuring the associations that you want and then using "DISM /Online /Export-DefaultAppAssociations:C:\Associations.xml" to export those settings) that should replace the default app associations.  (Note that even though an example is included from a customized Windows 10 1903 image, making IE 11 the default browser, you should replace this file with your own exported version.  Also, do not edit the file that you exported, e.g. to remove entries that you didn't change.)
+`Build-AutopilotBranding` is an alias: Build isn't an approved verb in Windows PowerShell 5.1, which would warn on
+every import if the cmdlet used it. Both cmdlets are part of the module, and everything works with Windows PowerShell 5.1 and PowerShell 7 (the tests
+run with 5.1 and 7.6).
 
-- Rename the computer (optional).  Set ComputerName in Config.xml; %SERIAL% is replaced with the BIOS serial number and the result is truncated to 15 characters.  Don't use this with hybrid Entra join.
-- Configure language settings with PowerShell (optional, Windows 11).  As an alternative to Language.xml, set LanguageSettings in Config.xml to install a language from Windows Update and set the display language, locale, culture and home location for new users.
+## Getting started
 
-## Troubleshooting
+```powershell
+Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1    # or Install-Module AutopilotBranding, once published
 
-- Wallpaper, Start menu and taskbar customizations don't apply (seen on 25H2): check whether the Intune enrollment policy "Windows Backup and Restore > Show restore page" is enabled.  When it is, the restore experience can override the default user profile settings.
-- To make apps (not just Windows) use dark mode, add AppMode=Dark below SystemMode=Dark in the [VisualStyles] section of Autopilot.theme.
-- Edge update: the script looks up the latest Stable Edge MSI for the device's architecture (x64 or ARM64) from the edgeupdates.microsoft.com API and verifies its hash before installing.  If the lookup fails, it falls back to EdgeBusinessMSI (x64) or EdgeBusinessARM (ARM64) in Config.xml.  ARM64 devices never use the x64 MSI (it breaks Edge and WebView2 there).
-- The script log is written to %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log.  A failure in one step is logged and the remaining steps still run.
+New-AutopilotBrandingProject -Path C:\AutopilotBranding\Contoso      # configuration + sample Assets to customize
+# Replace the files in C:\AutopilotBranding\Contoso\Assets with your own (wallpaper, theme, layouts, ...)
+Show-AutopilotBrandingBuilder -ProjectPath C:\AutopilotBranding\Contoso   # pick tasks and settings, then generate
+# or, without the UI:
+Build-AutopilotBranding -ProjectPath C:\AutopilotBranding\Contoso
+```
 
-## Requirements and Dependencies
+A project folder looks like this:
 
-This uses the Microsoft Win32 Content Prep Tool (a.k.a. IntuneWinAppUtil.exe, available from https://github.com/Microsoft/Microsoft-Win32-Content-Prep-Tool) to package the PowerShell script and related files into a .intunewin file that can be uploaded to Intune as a Win32 app. 
+```
+AutopilotBranding.json        Your configuration (starts as the default configuration)
+Assets\                       Your files, starting with copies of the template's samples
+Output\                       Generated: module, assets used, runner script (what goes into the package)
+AutopilotBranding.intunewin   Generated: the Intune Win32 app
+```
 
-## Building
+The template itself (`Template\` in the module) is never changed. If you open the builder without a project, it
+shows the template as an unsaved configuration. Saving it in a folder turns that folder into a project and copies
+the template files the configuration uses. **New project...** in the builder does the same as
+`New-AutopilotBrandingProject`. In this repository, `ShowBuilder.cmd` and `makeapp.cmd` use `.\Project`, which
+is ignored by git, or the folder you pass to them. They create the project from the template the first time.
 
-Run the makeapp.cmd file from a command prompt.  (It will not work if you using Terminal.)
+## Repository layout
+
+```
+ShowBuilder.cmd [project]         Loads the module and runs Show-AutopilotBrandingBuilder on .\Project (or [project])
+makeapp.cmd [project]             Loads the module and builds .\Project (or [project]) into Output and .intunewin
+Tests\Test-AutopilotBranding.ps1  Automated tests (run with each PowerShell version)
+web\                              Static web builder (TypeScript), see Web builder
+Module\AutopilotBranding\
+    AutopilotBranding.psd1/.psm1  Module manifest and loader
+    Template\                     Default project template: AutopilotBranding.json (equivalent to the v3 Config.xml
+                                  defaults) and Assets\ (theme, wallpaper, layouts, ...)
+    Public\Show-AutopilotBrandingBuilder.ps1, New-AutopilotBrandingPackage.ps1, New-AutopilotBrandingProject.ps1
+                                  The builder UI, headless builder and project cmdlets
+    Public\Builder.ps1            Builder functions (task discovery, JSON handling, output generation, packaging)
+    Public\Session.ps1            Run framework (Start-/Stop-AutopilotBranding, Invoke-ABTask, Write-ABLog, ...)
+    Private\Common.ps1            Shared task helpers (default user hive, registry, downloads, OOBE check, ...)
+    Private\BuilderUI.ps1         The builder window (WPF)
+    Private\BuilderHelpers.ps1    Internal builder helpers
+    Tasks\<order>-<Cmdlet>.ps1    One configuration task (cmdlet) per file
+```
+
+`ShowBuilder.cmd` and `makeapp.cmd` use PowerShell 7 (`pwsh.exe`) if it is installed, otherwise Windows PowerShell
+5.1. Set the `AB_POWERSHELL` environment variable to the PowerShell executable to use a specific one.
+
+## Configuration tasks
+
+The tasks run in the order shown here, which comes from the numeric prefix of each task file.
+
+| Cmdlet | What it does | Parameters |
+| --- | --- | --- |
+| `Rename-ABComputer` | Renames the computer; `%SERIAL%` is replaced with the BIOS serial number (max. 15 characters). Don't use with hybrid Entra join. | NewName |
+| `Set-ABStartLayout` | Custom Start menu layout: `Layout.xml` on Windows 10, `start2.bin` + `settings.dat` on Windows 11. | LayoutXmlPath, Start2BinPath, SettingsDatPath |
+| `Set-ABTaskbarLayout` | Custom Windows 11 taskbar layout; optionally unpins the Store. | TaskbarLayoutPath, UnpinStore |
+| `Set-ABTheme` | Installs a theme and wallpaper and makes it the default for new users. | ThemePath, WallpaperPath, UpdateThemeWallpaper |
+| `Set-ABLockScreen` | Lock screen image. | ImagePath |
+| `Disable-ABStartOnFirstLogon` | Stops Start from opening the first time a new user signs in. | |
+| `Disable-ABDesktopSpotlight` | Hides "Learn about this picture" and disables desktop Spotlight so the wallpaper is used. | HideLearnAboutThisPicture, DisableSpotlightCollection |
+| `Set-ABStartAlignment` | Default taskbar alignment (Left/Center). | Alignment |
+| `Hide-ABWidgets` | Hides the Widgets button (with a workaround for the 24H2 UCPD driver). | |
+| `Disable-ABWidgets` | Disables Widgets completely via policy. | DisableOnLockScreen |
+| `Set-ABSearchBoxMode` | Taskbar search box mode (Hidden/IconOnly/SearchBox/IconAndLabel), per user or (UsePolicy) as a machine policy that users can't change. | Mode, UsePolicy |
+| `Set-ABTimeZone` | Sets the time zone, or enables location services so that it is detected automatically. | TimeZone |
+| `Remove-ABProvisionedApps` | Removes in-box provisioned apps, and the same apps if installed for all users. | AppNames, RemoveInstalledPackages |
+| `Disable-ABCopilotPWA` | Prevents the Copilot PWA from being installed. | |
+| `Install-ABOneDrive` | Installs the OneDrive client per-machine. | Url, ArmUrl |
+| `Disable-ABEdgeDesktopShortcut` | Stops Edge from creating a desktop shortcut. | |
+| `Update-ABEdge` | Installs the latest Stable Edge for Business MSI for the device's architecture, looked up from the edgeupdates API with its hash verified; `Url`/`ArmUrl` are fallbacks. | LookUpLatest, Url, ArmUrl |
+| `Remove-ABEdgeBookmarks` | Removes OEM Edge bookmarks from the default profile. | |
+| `Add-ABLanguagePacks` | Installs all language pack CABs in a folder. | LanguagePackFolder |
+| `Set-ABLanguage` | Configures language settings for all users through an INTL.CPL XML file. | LanguageXmlPath |
+| `Set-ABLanguageSettings` | Windows 11 alternative to `Set-ABLanguage`: installs a language from Windows Update and sets the display language, locale, culture and home location for new users. | Language, Locale, GeoId |
+| `Disable-ABOptionalFeatures` | Disables optional features (`Get-WindowsOptionalFeature -Online`). | FeatureNames |
+| `Remove-ABWindowsCapabilities` | Removes capabilities/FODs (`Get-WindowsCapability -Online`, without the tildes and version). | CapabilityNames |
+| `Add-ABWindowsCapabilities` | Adds capabilities/FODs from Windows Update (temporarily bypassing WSUS). | CapabilityNames, BypassWsus |
+| `Set-ABDefaultApps` | Imports default app associations exported with `DISM /Online /Export-DefaultAppAssociations`. | AssociationsXmlPath |
+| `Set-ABRegisteredOwner` | Registered owner and organization. | Owner, Organization |
+| `Set-ABOEMInfo` | OEM manufacturer/model/support info (and the logo on Windows 10). | Manufacturer, Model, UseDetectedHardware, SupportPhone, SupportHours, SupportURL, LogoPath |
+| `Set-ABEnterpriseEdition` | Switches to Enterprise using a GVLK. | ProductKey |
+| `Enable-ABUEV` | Enables UE-V and registers templates. | TemplateFolder, SettingsStorageLocation |
+| `Disable-ABNetworkLocationFlyout` | Turns off the network location fly-out. | |
+| `Disable-ABAutoInstalledApps` | Stops Dev Home and the new Outlook from being installed automatically. | DevHome, OutlookNew |
+| `Install-ABWinGetPackages` | Installs apps with WinGet (machine scope), with the VC++ runtime for the OS architecture. | PackageIds, VCRedistUrl, VCRedistArmUrl |
+| `Set-ABChromeConfig` | Chrome `initial_preferences`; removes the Chrome desktop shortcut. | InitialPreferencesPath, RemoveDesktopShortcut |
+| `Disable-ABAPv2Pages` | Hides the extra Autopilot device preparation (APv2) OOBE pages. | |
+| `Update-ABApps` | Updates in-box apps (Update-InboxApp) and triggers a Store update scan. | UpdateInboxApps, TriggerStoreScan |
+| `Disable-ABFirstLogonAnimation` | Skips the first sign-in animation and the delayed desktop switch. | |
+| `Remove-ABOffice` | Removes all preinstalled Office products using the Office Deployment Tool. | OdtUrl |
+
+Each cmdlet has comment-based help (`Get-Help Set-ABTheme -Full`). The builder UI shows the same help text.
+
+## Using the builder UI
+
+Run `ShowBuilder.cmd`, or from PowerShell:
+
+```powershell
+Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1
+Show-AutopilotBrandingBuilder -ProjectPath C:\AutopilotBranding\Contoso
+```
+
+1. The project's configuration is loaded. With no project or configuration, the builder loads the default template
+   as an unsaved configuration. Use **New project...** to create a project from the template, **Open...** to load
+   another configuration, **New** to start with every task disabled, or **Import Config.xml...** to convert a v3
+   `Config.xml`.
+2. The tasks are listed on the left. Tick the ones that should run. Select a task to see its description and
+   parameters, then enter the values: check boxes for on/off settings, drop-down lists for fixed choices, one value
+   per line for lists, and **Browse...** for files and folders. If the file or folder you pick isn't in the
+   project's `Assets` folder, the builder asks whether to copy it there:
+   - **Yes** copies it and uses the copy.
+   - **No** uses it where it is.
+   - **Cancel** leaves the setting unchanged.
+
+   If `Assets` already has a different file or folder with that name, the builder asks before replacing it. An
+   identical file is reused without asking.
+3. **Save** / **Save As...** writes your choices to a JSON file. When the configuration moves to another folder,
+   files that came from the template are copied there, and other file paths are adjusted so they still point at
+   the same files.
+4. Click **Generate output and .intunewin**. This generates the output folder, by default the project's `Output`,
+   and packages it as `AutopilotBranding.intunewin` in the output folder's parent folder, which is the project. A
+   configuration has to be saved before it can be generated.
+
+## The JSON configuration
+
+```json
+{
+  "Version": 1,
+  "Description": "My configuration",
+  "Tasks": {
+    "Set-ABTheme": {
+      "Enabled": true,
+      "Parameters": {
+        "ThemePath": "Assets/Autopilot.theme",
+        "WallpaperPath": "Assets/Autopilot.jpg",
+        "UpdateThemeWallpaper": true
+      }
+    },
+    "Set-ABTimeZone": { "Enabled": true, "Parameters": { "TimeZone": "Pacific Standard Time" } }
+  }
+}
+```
+
+- The keys under `Tasks` are cmdlet names. The keys under `Parameters` are that cmdlet's parameter names.
+- Parameters that end in `Path` are files and parameters that end in `Folder` are folders. A relative path is
+  resolved against the JSON file's folder. These files are copied into the output's `Assets` folder.
+- When a task or parameter is missing from the file, its default is used. Tasks added in a newer module version show
+  up disabled.
+
+## The generated output folder and package
+
+Every build creates the output folder and then packages it as `AutopilotBranding.intunewin`. By default the
+package goes in the output folder's parent folder; for example, `.\Output` produces `.\AutopilotBranding.intunewin`.
+The package is self-contained:
+
+- Every file and folder that an enabled task uses is copied into the output's `Assets` folder, wherever it came
+  from. That includes files outside the project.
+- The packaged `AutopilotBranding.json` refers to them as `Assets\...`, relative to the package.
+- File settings of disabled tasks are cleared in the packaged configuration, because their files aren't included.
+
+Generation fails if anything still refers to a path outside the output folder. It warns about other text settings
+of enabled tasks that look like paths on the build computer. `Test-ABOutputSelfContained` runs the same check on any
+output folder.
+
+The output folder contains:
+
+```
+AutopilotBranding.ps1    Runner script: the same for every configuration (loads the module, runs the configuration)
+AutopilotBranding\       The AutopilotBranding module
+Assets\                  Files and folders referenced by the configuration
+AutopilotBranding.json   The configuration that was used
+```
+
+The runner script is the same for every configuration. It ships in the module as `Runner\AutopilotBranding.ps1`:
+
+```powershell
+Import-Module (Join-Path $PSScriptRoot 'AutopilotBranding\AutopilotBranding.psd1') -Force
+if (-not (Start-AutopilotBranding -Force:$Force)) { exit 0 }   # logging, tag file, OOBE check, load default user hive
+try {
+	Invoke-AutopilotBranding -ConfigPath (Join-Path $PSScriptRoot 'AutopilotBranding.json')
+} finally {
+	Stop-AutopilotBranding                                       # unload hive, task summary, stop logging
+}
+```
+
+`Invoke-AutopilotBranding` reads the packaged configuration and calls each enabled task in order. File and folder
+settings are resolved against the package folder. Settings left at their default values aren't passed. Each task
+runs inside `Invoke-ABTask`, so a failure in one task is logged and the remaining tasks still run. The log lists
+each task's parameters and ends with a summary of every task's status. To see what a configuration would run
+without running it, use `Get-ABTaskInvocation`.
+
+Because only the configuration and the files differ between packages, any tool that writes a valid
+`AutopilotBranding.json` and puts the right files next to it can build a package. The [web builder](#web-builder)
+works this way.
+
+## Building the Intune app
+
+Packaging uses `New-IntuneWinPackage` from the SvRooij.ContentPrep.Cmdlet module, which the module manifest declares
+as an external module dependency. That module, and the NuGet package provider it needs, are installed for the
+current user from the PowerShell Gallery the first time you package. It isn't a required module, because the
+AutopilotBranding module also runs on devices inside the package, where it isn't needed. Every build creates the package. You can build in any of these ways:
+
+- In the UI, click **Generate output and .intunewin**.
+- From PowerShell:
+
+  ```powershell
+  Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1
+  Build-AutopilotBranding -ProjectPath C:\AutopilotBranding\Contoso
+  # or with explicit paths (-OutputPath and -PackagePath are optional):
+  Build-AutopilotBranding -ConfigPath .\MyConfig.json -OutputPath .\Output -PackagePath .
+  ```
+
+- Run `makeapp.cmd [project folder]`. It builds `.\Project`, or the given folder, creating it from the template if
+  needed. The result is `<project>\Output` and `<project>\AutopilotBranding.intunewin`.
+
+## Web builder
+
+`web\` contains a static web page with the same model as the builder UI. You pick tasks and settings, add your
+files, and generate `AutopilotBranding.intunewin`, all in the browser. Nothing is uploaded, and it can be hosted on
+GitHub Pages or any static web server.
+
+- **Projects:** a project starts from the default template. **Save project** downloads it as a `.zip` with the
+  same layout as a project folder (`AutopilotBranding.json` + `Assets\`). **Open…** loads it again, or loads a
+  configuration `.json`. A saved project can also be extracted and used with the PowerShell module, and the other
+  way around.
+- **Files:** **Add file…** and **Add folder…** copy what you pick into the project's `Assets`. A different file with
+  the same name is only replaced after you confirm. **Project files** lists everything in the project.
+- **Generate .intunewin:** builds the same package as `New-AutopilotBrandingPackage`. It contains the generic
+  runner, the module, the files used by enabled tasks, and the configuration. **Download output** downloads the
+  package's content as a `.zip`, so you can inspect it.
+
+How it works:
+
+- **Task data:** `web\scripts\Export-WebData.ps1` exports the task definitions, the module files and the template
+  from the module into `web\dist\data`. The page always matches the module version it packages.
+- **Packaging:** the package is built with [fflate](https://github.com/101arrowz/fflate) (zip) and the browser's
+  Web Crypto API (AES-256-CBC, HMAC-SHA256, SHA-256).
+- **Format checks:** Microsoft doesn't document the .intunewin format. CI decodes a web-generated package and
+  compares it with the one SvRooij.ContentPrep makes from the same configuration: same files, bytes, configuration
+  and `Detection.xml` structure. That check is in `web\test\Test-WebPackage.ps1`.
+- **Limits:** packages are built in memory. Packages larger than about 4 GB aren't supported (no zip64), and very
+  large language packs are slow.
+
+Building and testing it locally (Node.js 22 and PowerShell):
+
+```powershell
+cd web
+npm ci
+npm run build                      # dist\ (page) and dist-node\generate.mjs (command-line generator)
+pwsh -File scripts\Export-WebData.ps1
+npm test                           # generates packages and decodes them with node:crypto
+npx serve dist                     # or any static server; open the page on localhost
+node test\e2e.mjs                  # browser test (needs Playwright: npm install --no-save playwright)
+```
+
+`.github\workflows\pages.yml` builds and tests the site on every push and deploys it from `main` to GitHub Pages.
+To turn deployment on, set **Settings > Pages > Source** to **GitHub Actions**.
 
 ## Using
 
-Add the resulting Win32 app (.intunewin) to Intune.  The installation command line should be:
+Add the resulting Win32 app (.intunewin) to Intune. The installation command line should be:
 
-powershell.exe -noprofile -executionpolicy bypass -file .\AutopilotBranding.ps1
+    powershell.exe -noprofile -executionpolicy bypass -file .\AutopilotBranding.ps1
 
 The uninstall command line should be:
 
-cmd.exe /c del %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag
+    cmd.exe /c del %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag
 
 The detection rule should look for the existence of this file:
 
-Path: %ProgramData%\Microsoft\AutopilotBranding
-File or filder:  AutopilotBranding.ps1.tag
+    Path: %ProgramData%\Microsoft\AutopilotBranding
+    File or folder: AutopilotBranding.ps1.tag
 
-See https://oofhours.com/2020/05/18/two-for-one-updated-autopilot-branding-and-update-os-scripts/ for more information.
+The log is written to `%ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log`. By default nothing is
+changed if OOBE has already completed; run `AutopilotBranding.ps1 -Force` to override this.
+
+The commands and detection rule are the same as in v3, so you can replace an existing app's content without
+changing how the app is set up.
+
+## Troubleshooting
+
+- The log is written to `%ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log`. Each task is logged
+  separately, a failure in one task doesn't stop the others, and the log ends with a summary of every task's status.
+- Wallpaper, Start menu and taskbar customizations don't apply (seen on 25H2): check whether the Intune enrollment
+  policy "Windows Backup and Restore > Show restore page" is enabled. When it is, the restore experience can
+  override the default user profile settings.
+- To make apps (not just Windows) use dark mode, add `AppMode=Dark` below `SystemMode=Dark` in the `[VisualStyles]`
+  section of `Autopilot.theme`.
+- Edge update: `Update-ABEdge` looks up the latest Stable Edge MSI for the device's architecture (x64 or ARM64)
+  from the edgeupdates.microsoft.com API and verifies its hash before installing. If the lookup fails, it falls
+  back to `Url` (x64) or `ArmUrl` (ARM64); with no `ArmUrl`, the update is then skipped on ARM64. ARM64 devices
+  never use the x64 MSI (it breaks Edge and WebView2 there).
+- Per-user settings missing (theme, Start layout, widgets, search box): Windows creates a user's profile from the
+  default profile once, at that user's first sign-in. If the app runs after that, the profile already exists and
+  doesn't get the default profile's changes. Make the app a blocking app: with classic Autopilot, add it to the
+  Enrollment Status Page's blocking apps (assigned to devices); with Autopilot device preparation (APv2), add it to
+  the allowed apps. Then it runs before the user's profile is created. As a safety net, the module also applies
+  per-user settings and files to user profiles that already exist; the log lists them as "Existing user profile". To turn that off, call
+  `Start-AutopilotBranding -IncludeExistingProfiles $false`. Machine-wide alternatives that don't depend on profiles:
+  `Disable-ABWidgets` (policy) and `Set-ABSearchBoxMode -UsePolicy`.
+- "The User Profile Service failed the sign-in": this happens if the default user registry hive is left loaded.
+  The module always unloads it when the run finishes (with retries), and unloads a hive left over from an earlier
+  run before loading it again.
+
+## Testing
+
+`Tests\Test-AutopilotBranding.ps1` checks the module, the builder functions, the builder UI (created and driven
+without being shown), the generated runner script, packaging, and the `.cmd` launchers. Run it with each PowerShell
+version you use:
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
+pwsh.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\Tests\Test-AutopilotBranding.ps1
+```
+
+The GitHub workflow runs it with Windows PowerShell 5.1 and PowerShell 7.6 before building the app.
+
+## Adding your own task
+
+Add a file named `Tasks\<order>-<Verb>-AB<Noun>.ps1` to the module that contains a single function with
+comment-based help (`.SYNOPSIS`, `.DESCRIPTION`, `.PARAMETER`) and a `param()` block. The builder finds it
+automatically. Supported parameter types are `[string]`, `[string[]]`, `[bool]`, `[switch]`, and `[int]`.
+`[ValidateSet()]` becomes a drop-down list. Name a parameter `...Path` or `...Folder` if it refers to a file or
+folder that should be copied into the package. Use the helpers in `Private\Common.ps1`, such as
+`Set-ABRegistryValue -Hive DefaultUser`, `Copy-ABFile`, and `Write-ABLog`, to stay consistent with the other tasks.
+
+## Migrating from v3 (Config.xml)
+
+Use **Import Config.xml...** in the UI, or:
+
+```powershell
+Import-Module .\Module\AutopilotBranding\AutopilotBranding.psd1
+Build-AutopilotBranding -LegacyConfigXml C:\Old\AutopilotBranding\Config.xml -ConfigPath .\MyConfig.json
+```
+
+Every `Skip*` flag becomes a task that is enabled or disabled, and every setting becomes a parameter (including the
+v3.3.2 `ComputerName` and `LanguageSettings` elements). File
+parameters point at the files that sit next to the old `Config.xml`.
 
 ## Change history
 
@@ -61,6 +372,28 @@ See https://oofhours.com/2020/05/18/two-for-one-updated-autopilot-branding-and-u
 - 2024-01-31: Added additional apps to remove, adding timestamps to log messages, cleaned up error logging.
 - 2024-04-27: Added logic to stop the Start menu from popping up each time a new user signs in.
 - 2024-12-26: Added support for removing FODs and disabling optional features.
+- 2026-11-03 (v3.3.2): Failures in one step no longer skip the rest; the default user hive is always unloaded; ARM64 fixes for Edge and the VC++ runtime; optional computer rename; optional PowerShell-based language settings; in-box app removal also removes installed packages; removed obsolete IE http/https associations.
+- 2026-11-04 (PR #100): The Edge update looks up the latest Stable MSI for x64 and ARM64 from the edgeupdates.microsoft.com API and verifies its hash.
+- 2026-11-05 (v4.0): Restructured the whole setup. The single `AutopilotBranding.ps1` script and its `Config.xml`
+  file are replaced by:
+  - **The `AutopilotBranding` PowerShell module.** Each configuration task is a cmdlet in its own file, with its
+    settings as parameters. The module is self-contained and ready for the PowerShell Gallery.
+  - **JSON configurations and project folders.** `New-AutopilotBrandingProject` creates a project from the
+    template included in the module: the default configuration plus sample assets to customize. An existing
+    `Config.xml` can be imported.
+  - **A builder UI** (`Show-AutopilotBrandingBuilder`, started by `ShowBuilder.cmd`) and a headless builder
+    (`New-AutopilotBrandingPackage`, alias `Build-AutopilotBranding`, run by `makeapp.cmd`). Both generate the
+    output folder and the `.intunewin` package.
+  - **A generic runner script.** It's the same for every package; it reads the packaged configuration and runs each
+    enabled task, logging each task's result and continuing after a failure.
+  - **A static web builder** (`web\`). It configures tasks, adds files and generates the `.intunewin` in the browser.
+
+  Other changes:
+  - Packages are self-contained: every file a task uses is copied into the package.
+  - Per-user settings also apply to user profiles that already exist.
+  - New tasks for the v3.3.2 options: computer rename and PowerShell-based language settings.
+  - `Remove-ABOffice` skips devices without Office and reports Office Deployment Tool failures.
+  - Automated tests run with Windows PowerShell 5.1 and PowerShell 7.6.
 
 ## Suggestions?
 

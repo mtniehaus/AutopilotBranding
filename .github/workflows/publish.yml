@@ -2,15 +2,21 @@ name: Publish Autopilot Branding
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
+
+# A new push cancels the previous run for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
 
   build:
 
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
     - name: Checkout
@@ -18,15 +24,81 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Install PowerShell 7.6
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+        $releases = Invoke-RestMethod -Uri 'https://api.github.com/repos/PowerShell/PowerShell/releases?per_page=100' -Headers $headers
+        $candidates = @($releases | Where-Object { $_.tag_name -match '^v7\.6\.' })
+        $release = $candidates | Where-Object { -not $_.prerelease } | Select-Object -First 1
+        if (-not $release) {
+          Write-Warning 'No stable PowerShell 7.6 release found, using the latest 7.6 preview'
+          $release = $candidates | Select-Object -First 1
+        }
+        if (-not $release) { throw 'No PowerShell 7.6 release found' }
+        $asset = $release.assets | Where-Object { $_.name -like 'PowerShell-*-win-x64.zip' } | Select-Object -First 1
+        $zip = Join-Path $env:RUNNER_TEMP 'pwsh76.zip'
+        $folder = Join-Path $env:RUNNER_TEMP 'pwsh76'
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip
+        Expand-Archive -Path $zip -DestinationPath $folder -Force
+        $exe = Join-Path $folder 'pwsh.exe'
+        & $exe -NoProfile -Command '"Installed PowerShell $($PSVersionTable.PSVersion)"'
+        "PWSH76=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+    - name: Disable the Windows PowerShell Update-Help prompt
+      shell: cmd
+      run: reg add HKLM\SOFTWARE\Microsoft\PowerShell /v DisablePromptToUpdateHelp /t REG_DWORD /d 1 /f
+
+    - name: Test with Windows PowerShell 5.1
+      shell: cmd
+      timeout-minutes: 15
+      run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File Tests\Test-AutopilotBranding.ps1
+
+    - name: Test with PowerShell 7.6
+      shell: cmd
+      timeout-minutes: 15
+      run: '"%PWSH76%" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File Tests\Test-AutopilotBranding.ps1'
+
     - name: Create Intune app
       shell: cmd
       run: |
-        MakeApp.cmd
+        call MakeApp.cmd || exit /b 1
         mkdir Build
-        copy AutopilotBranding.intunewin Build
+        copy Project\AutopilotBranding.intunewin Build
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Build and test the web builder, and generate a package with it
+      shell: pwsh
+      working-directory: web
+      run: |
+        npm ci
+        npm run build
+        & $env:PWSH76 -NoProfile -NonInteractive -File scripts/Export-WebData.ps1
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        npm test
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        node dist-node/generate.mjs --data dist/data --out ../Project/web.intunewin
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+    - name: Check the web package against SvRooij.ContentPrep's (Windows PowerShell 5.1)
+      shell: cmd
+      run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File web\test\Test-WebPackage.ps1 -WebPackage Project\web.intunewin -ReferencePackage Project\AutopilotBranding.intunewin -ReferenceOutput Project\Output
+
+    - name: Check the web package against SvRooij.ContentPrep's (PowerShell 7.6)
+      shell: cmd
+      run: '"%PWSH76%" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File web\test\Test-WebPackage.ps1 -WebPackage Project\web.intunewin -ReferencePackage Project\AutopilotBranding.intunewin -ReferenceOutput Project\Output'
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: AutopilotBranding
-        path: AutopilotBranding.intunewin
+        path: |
+          Project/AutopilotBranding.intunewin
+          Project/web.intunewin
+          Project/Output

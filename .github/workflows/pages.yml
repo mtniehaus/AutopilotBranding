@@ -1,0 +1,69 @@
+name: Web builder (GitHub Pages)
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main", "dev" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Build the site
+      working-directory: web
+      run: |
+        npm ci
+        npm run build
+        pwsh -NoProfile -NonInteractive -File scripts/Export-WebData.ps1
+
+    - name: Test package generation
+      working-directory: web
+      run: npm test
+
+    - name: Test the page in a browser
+      working-directory: web
+      run: |
+        npm install --no-save --no-audit --no-fund playwright@1.63.0
+        npx playwright install --with-deps chromium
+        node test/e2e.mjs
+
+    - name: Upload the site
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: web/dist
+
+  deploy:
+    # Publishes the site from main.  Requires GitHub Pages to be enabled with "GitHub Actions" as the source
+    # (repository Settings > Pages).
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
