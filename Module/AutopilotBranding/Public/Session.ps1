@@ -24,7 +24,8 @@ function Write-ABLog {
 function Mount-ABDefaultUserHive {
 	<#
 	.SYNOPSIS
-	Loads the default user profile's NTUSER.DAT into HKLM\TempUser.
+	Loads the default user profile's NTUSER.DAT into HKLM\TempUser, and makes the registry of existing user profiles
+	available (see Start-AutopilotBranding -IncludeExistingProfiles).
 	.DESCRIPTION
 	Calls are reference counted: the hive is only loaded by the first call and only unloaded when the
 	matching number of Dismount-ABDefaultUserHive calls have been made.  A hive left loaded by a previous run
@@ -48,6 +49,9 @@ function Mount-ABDefaultUserHive {
 			throw "Unable to load default user registry hive (exit code $LASTEXITCODE): $output"
 		}
 		$script:ABHiveLoadedByModule = $true
+		if ($script:ABIncludeExistingProfiles) {
+			Mount-ABUserHives
+		}
 	}
 	$script:ABHiveRefCount++
 }
@@ -74,10 +78,13 @@ function Dismount-ABDefaultUserHive {
 		$script:ABHiveRefCount--
 	}
 
-	if ($script:ABHiveRefCount -eq 0 -and $script:ABHiveLoadedByModule) {
-		Write-ABLog "Unloading default user registry hive"
-		Invoke-ABHiveUnload | Out-Null
-		$script:ABHiveLoadedByModule = $false
+	if ($script:ABHiveRefCount -eq 0) {
+		Dismount-ABUserHives
+		if ($script:ABHiveLoadedByModule) {
+			Write-ABLog "Unloading default user registry hive"
+			Invoke-ABHiveUnload | Out-Null
+			$script:ABHiveLoadedByModule = $false
+		}
 	}
 }
 
@@ -132,14 +139,22 @@ function Start-AutopilotBranding {
 	Folder for the log (transcript) and tag file.
 	.PARAMETER TagFileName
 	Name of the file used by the Intune detection rule.
+	.PARAMETER IncludeExistingProfiles
+	Also apply per-user settings (theme, Start layout, taskbar and search settings, ...) to user profiles that already
+	exist, not only to the default user profile that new profiles are created from.  This matters when the app installs
+	after a user has signed in, e.g. during the Autopilot account setup phase or with Autopilot device preparation:
+	that user's profile was already created from the default profile.
 	#>
 	[CmdletBinding()]
 	[OutputType([bool])]
 	param (
 		[switch] $Force,
 		[string] $LogFolder = "$($env:ProgramData)\Microsoft\AutopilotBranding",
-		[string] $TagFileName = 'AutopilotBranding.ps1.tag'
+		[string] $TagFileName = 'AutopilotBranding.ps1.tag',
+		[bool] $IncludeExistingProfiles = $true
 	)
+
+	$script:ABIncludeExistingProfiles = $IncludeExistingProfiles
 
 	# Use UTC so that time zone changes don't affect the total runtime calculation
 	$script:ABStartUtc = [datetime]::UtcNow

@@ -90,7 +90,7 @@ The tasks run in the order shown here, which comes from the numeric prefix of ea
 | `Set-ABStartAlignment` | Default taskbar alignment (Left/Center). | Alignment |
 | `Hide-ABWidgets` | Hides the Widgets button (with a workaround for the 24H2 UCPD driver). | |
 | `Disable-ABWidgets` | Disables Widgets completely via policy. | DisableOnLockScreen |
-| `Set-ABSearchBoxMode` | Taskbar search box mode (Hidden/IconOnly/SearchBox/IconAndLabel). | Mode |
+| `Set-ABSearchBoxMode` | Taskbar search box mode (Hidden/IconOnly/SearchBox/IconAndLabel), per user or (UsePolicy) as a machine policy that users can't change. | Mode, UsePolicy |
 | `Set-ABTimeZone` | Sets the time zone, or enables location services so that it is detected automatically. | TimeZone |
 | `Remove-ABProvisionedApps` | Removes in-box provisioned apps, and the same apps if installed for all users. | AppNames, RemoveInstalledPackages |
 | `Disable-ABCopilotPWA` | Prevents the Copilot PWA from being installed. | |
@@ -319,6 +319,13 @@ changing how the app is set up.
   from the edgeupdates.microsoft.com API and verifies its hash before installing. If the lookup fails, it falls
   back to `Url` (x64) or `ArmUrl` (ARM64); with no `ArmUrl`, the update is then skipped on ARM64. ARM64 devices
   never use the x64 MSI (it breaks Edge and WebView2 there).
+- Per-user settings missing (theme, Start layout, widgets, search box): Windows creates a user's profile from the
+  default profile once, at that user's first sign-in. If the app runs after the user has signed in, that profile
+  already exists. That always happens with Autopilot device preparation (APv2), and with classic Autopilot when the
+  app isn't a blocking app in the Enrollment Status Page device phase. So the module also applies per-user settings
+  and files to existing user profiles; the log lists them as "Existing user profile". To turn that off, call
+  `Start-AutopilotBranding -IncludeExistingProfiles $false`. Machine-wide alternatives that don't depend on profiles:
+  `Disable-ABWidgets` (policy) and `Set-ABSearchBoxMode -UsePolicy`.
 - "The User Profile Service failed the sign-in": this happens if the default user registry hive is left loaded.
   The module always unloads it when the run finishes (with retries), and unloads a hive left over from an earlier
   run before loading it again.

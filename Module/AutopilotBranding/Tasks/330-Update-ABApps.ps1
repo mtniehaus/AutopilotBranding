@@ -27,7 +27,9 @@ function Update-ABApps {
 
 			Write-ABLog 'Updating inbox apps'
 			# The path might not be set right to find this, so we'll hard-code the location
-			Get-AppxPackage -AllUsers | Select-Object -Unique PackageFamilyName | . "$($env:ProgramFiles)\WindowsPowerShell\Scripts\Update-InboxApp.ps1" -Verbose
+			# Only Store-signed packages can be updated from the Store (system packages just produce errors)
+			Get-AppxPackage -AllUsers | Where-Object { $_.SignatureKind -eq 'Store' } | Select-Object -Unique PackageFamilyName |
+				. "$($env:ProgramFiles)\WindowsPowerShell\Scripts\Update-InboxApp.ps1" -Verbose
 		}
 		catch {
 			Write-ABLog "Error updating in-box apps: $_"

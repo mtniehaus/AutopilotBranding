@@ -4,6 +4,9 @@
 $script:ABDefaultUserHiveName = 'TempUser'
 $script:ABHiveRefCount = 0
 $script:ABHiveLoadedByModule = $false
+# Per-user changes also go to user profiles that already exist (see Start-AutopilotBranding -IncludeExistingProfiles)
+$script:ABIncludeExistingProfiles = $true
+$script:ABUserHives = New-Object System.Collections.Generic.List[object]
 
 
 function Get-ABDefaultUserProfilePath {
@@ -92,9 +95,13 @@ function Test-ABArm64 {
 function Set-ABRegistryValue {
 	<#
 	.SYNOPSIS
-	Sets a registry value using reg.exe (64-bit view), either in HKLM or in the default user hive.
+	Sets a registry value using reg.exe (64-bit view): in HKLM, or in user profiles.
 	.PARAMETER Hive
-	Machine = HKLM; DefaultUser = the default user profile's NTUSER.DAT (loaded on demand).
+	Machine = HKLM.
+	DefaultUser = the default user profile (so new users get the value) and, unless turned off with
+	Start-AutopilotBranding -IncludeExistingProfiles $false, every user profile that already exists (for example the
+	profile of the user who is signing in while the app installs during Autopilot account setup).
+	ExistingUsers = only the user profiles that already exist.
 	.PARAMETER Path
 	Key path relative to the hive root, e.g. "Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced".
 	.PARAMETER Name
@@ -102,7 +109,7 @@ function Set-ABRegistryValue {
 	#>
 	[CmdletBinding()]
 	param (
-		[ValidateSet('Machine', 'DefaultUser')] [string] $Hive = 'Machine',
+		[ValidateSet('Machine', 'DefaultUser', 'ExistingUsers')] [string] $Hive = 'Machine',
 		[Parameter(Mandatory = $true)] [string] $Path,
 		[string] $Name,
 		[ValidateSet('REG_SZ', 'REG_EXPAND_SZ', 'REG_DWORD', 'REG_QWORD', 'REG_MULTI_SZ', 'REG_BINARY')] [string] $Type = 'REG_DWORD',
@@ -110,29 +117,153 @@ function Set-ABRegistryValue {
 		[string] $RegExe = 'reg.exe'
 	)
 
-	if ($Hive -eq 'DefaultUser') {
+	$userHive = $Hive -ne 'Machine'
+	if ($userHive) {
 		Mount-ABDefaultUserHive
-		$root = Get-ABDefaultUserRegistryRoot
-	} else {
-		$root = 'HKLM'
 	}
-
 	try {
-		$key = "$root\$($Path.TrimStart('\'))"
-		if ($PSBoundParameters.ContainsKey('Name')) {
-			$output = & $RegExe add "$key" /v "$Name" /t $Type /d "$Value" /f /reg:64 2>&1
+		if ($userHive) {
+			$roots = @(Get-ABUserRegistryRoots -Scope $Hive)
 		} else {
-			$output = & $RegExe add "$key" /f /reg:64 2>&1
+			$roots = @([pscustomobject]@{ Root = 'HKLM'; Name = 'HKLM' })
 		}
-		if ($LASTEXITCODE -ne 0) {
-			throw "reg.exe add `"$key`" $Name failed (exit code $LASTEXITCODE): $output"
+		foreach ($root in $roots) {
+			$key = "$($root.Root)\$($Path.TrimStart('\'))"
+			if ($PSBoundParameters.ContainsKey('Name')) {
+				$output = & $RegExe add "$key" /v "$Name" /t $Type /d "$Value" /f /reg:64 2>&1
+			} else {
+				$output = & $RegExe add "$key" /f /reg:64 2>&1
+			}
+			if ($LASTEXITCODE -ne 0) {
+				throw "reg.exe add `"$key`" $Name ($($root.Name)) failed (exit code $LASTEXITCODE): $output"
+			}
 		}
 	}
 	finally {
-		if ($Hive -eq 'DefaultUser') {
+		if ($userHive) {
 			Dismount-ABDefaultUserHive
 		}
 	}
+}
+
+
+function Get-ABExistingUserProfile {
+	<#
+	.SYNOPSIS
+	Returns the user profiles that already exist on the device (SID, ProfilePath, Loaded).
+	.DESCRIPTION
+	Local and domain users (S-1-5-21-...) and Microsoft Entra ID users (S-1-12-1-...) with a profile folder and an
+	NTUSER.DAT.  System accounts and the temporary OOBE accounts (defaultuser0, ...) are left out.  Loaded is $true
+	when the profile's registry hive is already loaded (under HKEY_USERS), e.g. for a signed-in user.
+	#>
+	[CmdletBinding()]
+	param ()
+
+	$profileList = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+	foreach ($key in (Get-ChildItem -Path $profileList -ErrorAction SilentlyContinue)) {
+		$sid = $key.PSChildName
+		if ($sid -notmatch '^S-1-5-21-|^S-1-12-1-') {
+			continue
+		}
+		$path = (Get-ItemProperty -Path $key.PSPath -Name ProfileImagePath -ErrorAction SilentlyContinue).ProfileImagePath
+		if ([string]::IsNullOrWhiteSpace($path)) {
+			continue
+		}
+		$path = [Environment]::ExpandEnvironmentVariables($path)
+		if ((Split-Path -Path $path -Leaf) -like 'defaultuser*' -or -not (Test-Path -LiteralPath (Join-Path $path 'NTUSER.DAT'))) {
+			continue
+		}
+		[pscustomobject]@{
+			Sid         = $sid
+			ProfilePath = $path
+			Loaded      = Test-Path -LiteralPath "Registry::HKEY_USERS\$sid"
+		}
+	}
+}
+
+
+function Mount-ABUserHives {
+	# Makes the registry of every existing user profile available: loaded hives are used through HKEY_USERS, others
+	# are loaded under HKLM\ABUser<n> (and unloaded again by Dismount-ABUserHives).
+	$script:ABUserHives = New-Object System.Collections.Generic.List[object]
+	$index = 0
+	foreach ($userProfile in @(Get-ABExistingUserProfile)) {
+		if ($userProfile.Loaded) {
+			$script:ABUserHives.Add([pscustomobject]@{ Root = "HKU\$($userProfile.Sid)"; Name = $userProfile.ProfilePath; ProfilePath = $userProfile.ProfilePath; LoadedByModule = $false })
+			Write-ABLog "Existing user profile (signed in): $($userProfile.ProfilePath)"
+			continue
+		}
+		$index++
+		$root = "HKLM\ABUser$index"
+		if (Test-Path -LiteralPath "Registry::HKEY_LOCAL_MACHINE\ABUser$index") {
+			Invoke-ABHiveUnload -Root $root -Description "registry hive $root (left over from a previous run)" | Out-Null
+		}
+		$output = & reg.exe load $root (Join-Path $userProfile.ProfilePath 'NTUSER.DAT') 2>&1
+		if ($LASTEXITCODE -ne 0) {
+			Write-ABLog "Unable to load the registry hive of $($userProfile.ProfilePath), skipping it: $output"
+			continue
+		}
+		$script:ABUserHives.Add([pscustomobject]@{ Root = $root; Name = $userProfile.ProfilePath; ProfilePath = $userProfile.ProfilePath; LoadedByModule = $true })
+		Write-ABLog "Existing user profile (registry loaded as $root): $($userProfile.ProfilePath)"
+	}
+}
+
+
+function Dismount-ABUserHives {
+	foreach ($hive in @($script:ABUserHives)) {
+		if ($hive.LoadedByModule) {
+			Invoke-ABHiveUnload -Root $hive.Root -Description "registry hive of $($hive.Name)" | Out-Null
+		}
+	}
+	$script:ABUserHives = New-Object System.Collections.Generic.List[object]
+}
+
+
+function Get-ABUserRegistryRoots {
+	<#
+	.SYNOPSIS
+	Returns the reg.exe roots (Root, Name) of the user registry hives to change; the hives must be mounted.
+	.PARAMETER Scope
+	DefaultUser = the default user hive plus the existing profiles (if included); ExistingUsers = only those.
+	#>
+	param (
+		[ValidateSet('DefaultUser', 'ExistingUsers')] [string] $Scope = 'DefaultUser'
+	)
+
+	if ($Scope -eq 'DefaultUser') {
+		[pscustomobject]@{ Root = Get-ABDefaultUserRegistryRoot; Name = 'default user' }
+	}
+	if ($script:ABIncludeExistingProfiles) {
+		foreach ($hive in @($script:ABUserHives)) {
+			$hive
+		}
+	}
+}
+
+
+function Get-ABUserProfilePaths {
+	<#
+	.SYNOPSIS
+	Returns the profile folders to change: the default user profile and, if included, the existing user profiles.
+	#>
+	param (
+		[ValidateSet('DefaultUser', 'ExistingUsers')] [string] $Scope = 'DefaultUser'
+	)
+
+	if ($Scope -eq 'DefaultUser') {
+		Get-ABDefaultUserProfilePath
+	}
+	if ($script:ABIncludeExistingProfiles) {
+		foreach ($userProfile in @(Get-ABExistingUserProfile)) {
+			$userProfile.ProfilePath
+		}
+	}
+}
+
+
+function ConvertTo-ABProviderPath([string] $Root) {
+	# Converts a reg.exe root (HKLM\X, HKU\SID) to a PowerShell registry provider path
+	$Root -replace '^HKLM\\', 'Registry::HKEY_LOCAL_MACHINE\' -replace '^HKU\\', 'Registry::HKEY_USERS\'
 }
 
 
@@ -237,20 +368,25 @@ function Copy-ABFile {
 
 
 function Invoke-ABHiveUnload {
-	# Unloads HKLM\TempUser, retrying a few times.  Leaving the default user hive loaded corrupts new profiles
-	# ("The User Profile Service failed the sign-in").  Returns $true if the hive was unloaded.
+	# Unloads a registry hive (by default HKLM\TempUser), retrying a few times.  Leaving the default user hive loaded
+	# corrupts new profiles ("The User Profile Service failed the sign-in").  Returns $true if the hive was unloaded.
+	param (
+		[string] $Root = (Get-ABDefaultUserRegistryRoot),
+		[string] $Description = 'default user registry hive'
+	)
+
 	for ($i = 1; $i -le 5; $i++) {
 		[GC]::Collect()
 		[GC]::WaitForPendingFinalizers()
-		$output = & reg.exe unload "$(Get-ABDefaultUserRegistryRoot)" 2>&1
+		$output = & reg.exe unload $Root 2>&1
 		if ($LASTEXITCODE -eq 0) {
-			Write-ABLog 'Default user registry hive unloaded'
+			Write-ABLog "Unloaded $Description"
 			return $true
 		}
-		Write-ABLog "Unable to unload default user registry hive (attempt $i): $output"
+		Write-ABLog "Unable to unload $Description (attempt $i): $output"
 		Start-Sleep -Seconds 2
 	}
-	Write-ABLog 'ERROR: Unable to unload default user registry hive'
+	Write-ABLog "ERROR: Unable to unload $Description"
 	return $false
 }
 

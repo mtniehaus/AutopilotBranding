@@ -67,7 +67,8 @@
     "Set-ABSearchBoxMode": {
       "Enabled": true,
       "Parameters": {
-        "Mode": "IconOnly"
+        "Mode": "IconOnly",
+        "UsePolicy": false
       }
     },
     "Set-ABTimeZone": {

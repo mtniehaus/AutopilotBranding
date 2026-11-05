@@ -371,7 +371,56 @@ Test-Case 'Generated runner script runs (log, tag file, OOBE check) in this Powe
 	Assert-True (Test-Path (Join-Path $logFolder 'AutopilotBranding.ps1.tag')) 'Tag file not created'
 }
 
-Test-Case 'Generic runner runs a configuration end to end (-Force, two tasks) in this PowerShell version' {
+Test-Case 'Existing user profiles are found (and system and OOBE accounts are not)' {
+	$profiles = @(& $module { Get-ABExistingUserProfile })
+	foreach ($p in $profiles) {
+		Assert-True ($p.Sid -match '^S-1-5-21-|^S-1-12-1-') "Unexpected SID $($p.Sid)"
+		Assert-True ((Split-Path $p.ProfilePath -Leaf) -notlike 'defaultuser*') "OOBE account included: $($p.ProfilePath)"
+	}
+	$me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+	if ($me -match '^S-1-5-21-|^S-1-12-1-') {
+		$mine = $profiles | Where-Object { $_.Sid -eq $me }
+		Assert-True $mine "The current user's profile ($me) wasn't found"
+		Assert-True $mine.Loaded "The current user's profile isn't reported as loaded"
+	}
+}
+
+Test-Case 'Per-user settings go to the default profile and existing profiles (unless turned off)' {
+	# Writes a test key to the default profile and the current user's profile, so it only runs on a CI runner
+	if (-not $isAdmin -or $env:GITHUB_ACTIONS -ne 'true') {
+		Write-Host '       Skipped: only runs elevated on a GitHub Actions runner (it changes user profiles)' -ForegroundColor Yellow
+		return
+	}
+	try {
+		& $module {
+			Set-ABRegistryValue -Hive DefaultUser -Path 'Software\AutopilotBrandingTest' -Name Probe -Type REG_SZ -Value 'both'
+			$script:ABIncludeExistingProfiles = $false
+			try { Set-ABRegistryValue -Hive DefaultUser -Path 'Software\AutopilotBrandingTest' -Name DefaultOnly -Type REG_SZ -Value 'default' }
+			finally { $script:ABIncludeExistingProfiles = $true }
+			Set-ABRegistryValue -Hive ExistingUsers -Path 'Software\AutopilotBrandingTest' -Name ExistingOnly -Type REG_SZ -Value 'existing'
+		}
+		$hkcu = Get-ItemProperty 'HKCU:\Software\AutopilotBrandingTest'
+		Assert-Equal 'both' $hkcu.Probe 'Value not written to the existing (signed-in) profile'
+		Assert-True ($null -eq $hkcu.DefaultOnly) 'Value written to existing profiles with IncludeExistingProfiles off'
+		Assert-Equal 'existing' $hkcu.ExistingOnly 'ExistingUsers value not written to the existing profile'
+		$default = & $module {
+			Mount-ABDefaultUserHive
+			try { Get-ItemProperty 'Registry::HKEY_LOCAL_MACHINE\TempUser\Software\AutopilotBrandingTest' } finally { Dismount-ABDefaultUserHive }
+		}
+		Assert-Equal 'both' $default.Probe 'Value not written to the default profile'
+		Assert-Equal 'default' $default.DefaultOnly 'Value not written to the default profile with IncludeExistingProfiles off'
+		Assert-True ($null -eq $default.ExistingOnly) 'ExistingUsers value written to the default profile'
+	}
+	finally {
+		Remove-Item 'HKCU:\Software\AutopilotBrandingTest' -Recurse -Force -ErrorAction SilentlyContinue
+		& $module {
+			Mount-ABDefaultUserHive
+			try { Remove-Item 'Registry::HKEY_LOCAL_MACHINE\TempUser\Software\AutopilotBrandingTest' -Recurse -Force -ErrorAction SilentlyContinue } finally { Dismount-ABDefaultUserHive }
+		}
+	}
+}
+
+Test-Case 'Generic runner runs a configuration end to end (-Force, three tasks) in this PowerShell version' {
 	# This changes the computer (registered owner, lock screen image), so it only runs on a CI runner
 	if (-not $isAdmin -or $env:GITHUB_ACTIONS -ne 'true') {
 		Write-Host '       Skipped: only runs elevated on a GitHub Actions runner (it changes the computer)' -ForegroundColor Yellow
@@ -380,6 +429,8 @@ Test-Case 'Generic runner runs a configuration end to end (-Force, two tasks) in
 	$ntKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 	$cspKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'
 	$original = Get-ItemProperty $ntKey
+	$searchKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search'
+	$originalSearch = (Get-ItemProperty $searchKey -ErrorAction SilentlyContinue).SearchboxTaskbarMode
 	try {
 		$configuration = New-ABConfiguration
 		foreach ($key in @($configuration.Tasks.Keys)) { $configuration.Tasks[$key].Enabled = $false }
@@ -388,22 +439,31 @@ Test-Case 'Generic runner runs a configuration end to end (-Force, two tasks) in
 		$configuration.Tasks['Set-ABRegisteredOwner'].Parameters.Organization = 'AB Test Org'
 		$configuration.Tasks['Set-ABLockScreen'].Enabled = $true
 		$configuration.Tasks['Set-ABLockScreen'].Parameters.ImagePath = Join-Path $project 'Assets\AutopilotLock.jpg'
+		# A per-user task: applied to the signed-in (existing) profile running the test, like an APv2 user profile
+		$configuration.Tasks['Set-ABSearchBoxMode'].Enabled = $true
+		$configuration.Tasks['Set-ABSearchBoxMode'].Parameters.Mode = 'Hidden'
 		$output = New-ABOutput -Configuration $configuration -BasePath $project -OutputPath (Join-Path $temp 'RunnerOutput') -Force
 		$log = & $psExe -NoProfile -ExecutionPolicy Bypass -File $output.RunnerScript -Force 2>&1 | Out-String
 		Assert-Equal 0 $LASTEXITCODE "Runner exit code (output: $log)"
 		Assert-True ($log -match 'Succeeded\s+Set-ABRegisteredOwner') "Set-ABRegisteredOwner did not succeed: $log"
 		Assert-True ($log -match 'Succeeded\s+Set-ABLockScreen') "Set-ABLockScreen did not succeed: $log"
+		Assert-True ($log -match 'Succeeded\s+Set-ABSearchBoxMode') "Set-ABSearchBoxMode did not succeed: $log"
 		$now = Get-ItemProperty $ntKey
 		Assert-Equal 'AB Runner Test' $now.RegisteredOwner 'RegisteredOwner'
 		Assert-Equal 'AB Test Org' $now.RegisteredOrganization 'RegisteredOrganization'
 		$lockImage = (Get-ItemProperty $cspKey).LockScreenImagePath
 		Assert-Equal "$($env:SystemRoot)\Web\Wallpaper\Autopilot\AutopilotLock.jpg" $lockImage 'Lock screen image (copied from the package Assets)'
 		Assert-True (Test-Path $lockImage) 'Lock screen image not copied'
+		Assert-Equal 0 (Get-ItemProperty $searchKey).SearchboxTaskbarMode 'Search box mode not set in the existing (signed-in) profile'
+		Assert-True ($log -match 'Existing user profile') "Existing profiles not logged: $log"
 	}
 	finally {
 		Set-ItemProperty $ntKey -Name RegisteredOwner -Value ([string]$original.RegisteredOwner)
 		Set-ItemProperty $ntKey -Name RegisteredOrganization -Value ([string]$original.RegisteredOrganization)
 		Remove-ItemProperty $cspKey -Name LockScreenImagePath, LockScreenImageUrl, LockScreenImageStatus -ErrorAction SilentlyContinue
+		if ($null -ne $originalSearch) { Set-ItemProperty $searchKey -Name SearchboxTaskbarMode -Value $originalSearch }
+		else { Remove-ItemProperty $searchKey -Name SearchboxTaskbarMode -ErrorAction SilentlyContinue }
+		Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce' -Name SetSearchIconOnly -ErrorAction SilentlyContinue
 	}
 }
 

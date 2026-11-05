@@ -32,7 +32,9 @@ v4.0.0 - Restructured the monolithic AutopilotBranding.ps1 script into a module 
          a builder UI generates the runner script and output folder.  Includes the v3.3.2 fixes from main
          (hive unload retries, ARM64 handling for Edge and the VC++ runtime, removal of installed appx packages,
          more resilient WinGet/feature steps), the new Rename-ABComputer and Set-ABLanguageSettings tasks, and
-         the Edge MSI lookup from the edgeupdates API with hash verification (PR #100).
+         the Edge MSI lookup from the edgeupdates API with hash verification (PR #100).  Per-user settings and
+         files are also applied to existing user profiles (needed with Autopilot device preparation, where the
+         user's profile exists before apps install).
 v3.3.2 - 2026-11-03 - Fixes for step failures, ARM64, hive unload; optional computer rename and language settings (last version of the monolithic script)
 v3.3.1 - 2025-10-10 - Minor bug fixes
 '@
