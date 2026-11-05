@@ -357,6 +357,31 @@ changed if OOBE has already completed; run `AutopilotBranding.ps1 -Force` to ove
 The commands and detection rule are the same as in v3, so you can replace an existing app's content without
 changing how the app is set up.
 
+## Using with 2Pint Software DeployR
+
+The same `AutopilotBranding.intunewin` file can be deployed with
+[2Pint Software DeployR](https://documentation.2pintsoftware.com/deployr/content-management/applications):
+
+1. Create a new content item with the purpose **Application** and the type **Single file**.
+2. Add a new version, with this command line:
+
+       pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\AutopilotBranding.ps1
+
+3. Upload the `.intunewin` file as the version's content.
+
+For more on creating applications, see
+[Applications](https://documentation.2pintsoftware.com/deployr/content-management/applications) in the DeployR
+documentation.
+
+Use the **SetupComplete** continuation method for the task sequence that installs it, so the app runs before anyone
+signs in. Then the default user profile is customized before any user's profile is created from it, and every user
+gets the per-user settings (theme, Start layout, taskbar and search settings). It also lets the app's OOBE check
+pass, because Windows setup hasn't finished yet. See
+[Continuation methods](https://documentation.2pintsoftware.com/deployr/task-sequences/continuation-methods) for
+details.
+
+The log, the tag file and the `-Force` behavior are the same as with Intune (see [Using](#using)).
+
 ## Troubleshooting
 
 - The log is written to `%ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log`. Each task is logged
