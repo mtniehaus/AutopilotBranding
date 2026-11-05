@@ -11,7 +11,7 @@
     "test": "node scripts/build.mjs && node --test test/*.test.mjs"
   },
   "dependencies": {
-    "fflate": "0.8.2"
+    "fflate": "0.8.3"
   },
   "devDependencies": {
     "@types/node": "22.19.1",
