@@ -327,6 +327,21 @@ Add the resulting Win32 app (.intunewin) to Intune. The installation command lin
 
     powershell.exe -noprofile -executionpolicy bypass -file .\AutopilotBranding.ps1
 
+If PowerShell 7 is already installed on the device, you can run the package with it instead:
+
+    "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -File .\AutopilotBranding.ps1
+
+- **Use the full path.** The Intune Management Extension is a 32-bit process, so `%ProgramFiles%` would expand to
+  `C:\Program Files (x86)`. The full path starts the 64-bit `pwsh.exe`, and the runner script doesn't relaunch
+  itself under Windows PowerShell.
+- **PowerShell 7 must already be there.** If `pwsh.exe` is missing, the install fails. Make it certain, for example
+  with a PowerShell 7 app set as a dependency of this app in Intune, or keep using `powershell.exe`, which every
+  device has.
+- **What changes:** the module and all tasks are the same with either version. With PowerShell 7,
+  `Install-ABWinGetPackages` can also update WinGet itself (`Repair-WinGetPackageManager` only runs in PowerShell 7);
+  with Windows PowerShell it uses the WinGet already on the device. The automated tests run with both versions, but
+  device installs have so far been tested with Windows PowerShell.
+
 The uninstall command line should be:
 
     cmd.exe /c del %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag
