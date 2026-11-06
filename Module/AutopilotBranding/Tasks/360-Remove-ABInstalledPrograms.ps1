@@ -48,7 +48,16 @@ function Remove-ABInstalledPrograms {
 	}
 
 	try {
-		$packages = @(& $getPackage -ProviderName $ProviderNames -ErrorAction SilentlyContinue)
+		if ($compatModule) {
+			Write-ABLog "Using PackageManagement through Windows PowerShell ($(@($compatModule)[0].Name) $(@($compatModule)[0].Version))"
+			$providers = @(& 'Get-ABWinPSPackageProvider' -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+			Write-ABLog "Package providers: $($providers -join ', ')"
+		}
+		$getErrors = $null
+		$packages = @(& $getPackage -ProviderName $ProviderNames -ErrorAction SilentlyContinue -ErrorVariable getErrors)
+		foreach ($e in @($getErrors)) {
+			Write-ABLog "  Get-Package: $e"
+		}
 		Write-ABLog "Found $($packages.Count) installed packages ($($ProviderNames -join ', '))"
 
 		$removed = @{}
