@@ -8,19 +8,23 @@ function Remove-ABInstalledPrograms {
 	allowed) or its ID: the MSI product code (with or without braces) or the Programs uninstall registry key name.
 	On PowerShell 7 the MSI and Programs providers are only available in Windows PowerShell, so the PackageManagement
 	module is imported with -UseWindowsPowerShell.
-	Programs entries are uninstalled with their registered uninstall command, so only programs whose uninstaller runs
-	silently can be removed this way.
+	The Programs provider's Uninstall-Package doesn't run every program's uninstaller, so when a Programs entry is still
+	registered afterwards, its silent uninstall command is run directly: the QuietUninstallString, or an msiexec
+	UninstallString changed to a quiet uninstall.  Programs without a silent uninstall command are skipped (logged).
 	.PARAMETER PackageIds
 	Names or IDs of the packages to remove, one per line (nothing is removed when empty).  Use
 	Get-Package -ProviderName msi, Programs to list the installed packages: the Name column, or the MSI product code /
 	uninstall key name (in FastPackageReference).
 	.PARAMETER ProviderNames
 	PackageManagement providers to search, one per line.
+	.PARAMETER TimeoutSeconds
+	How long to wait for a program's uninstall command before stopping it.
 	#>
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory = $false)] [string[]] $PackageIds = @(),
-		[Parameter(Mandatory = $false)] [string[]] $ProviderNames = @('msi', 'Programs')
+		[Parameter(Mandatory = $false)] [string[]] $ProviderNames = @('msi', 'Programs'),
+		[Parameter(Mandatory = $false)] [int] $TimeoutSeconds = 600
 	)
 
 	$PackageIds = @($PackageIds | Where-Object { $_ } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
@@ -79,6 +83,18 @@ function Remove-ABInstalledPrograms {
 					$result = @(& $uninstallPackage @uninstall)
 					foreach ($r in $result) {
 						Write-ABLog "  $($r.Name) $($r.Version): $($r.Status)"
+					}
+					if ($package.ProviderName -eq 'Programs') {
+						$entry = Get-ABUninstallEntry -FastPackageReference ([string]$package.FastPackageReference)
+						if ($entry) {
+							Write-ABLog '  Still registered after Uninstall-Package, running its uninstall command'
+							$exitCode = Invoke-ABUninstallCommand -Entry $entry -TimeoutSeconds $TimeoutSeconds
+							Write-ABLog "  Exit code: $exitCode"
+							if (Get-ABUninstallEntry -FastPackageReference ([string]$package.FastPackageReference)) {
+								throw "still registered after running its uninstall command (exit code $exitCode)"
+							}
+						}
+						Write-ABLog '  Uninstalled'
 					}
 				}
 				catch {

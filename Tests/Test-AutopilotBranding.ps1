@@ -452,21 +452,13 @@ Test-Case 'Remove-ABInstalledPrograms uninstalls a program by ID with the Progra
 		New-ItemProperty -Path $key -Name Publisher -Value 'AutopilotBranding tests' -Force | Out-Null
 		New-ItemProperty -Path $key -Name UninstallString -Value $command -Force | Out-Null
 		New-ItemProperty -Path $key -Name QuietUninstallString -Value $command -Force | Out-Null
-		$p = Get-Package -ProviderName Programs -Name 'Autopilot Branding Test Program' -ErrorAction SilentlyContinue
-		Write-Host "       Get-Package: $(($p | Select-Object Name, Version, ProviderName, FastPackageReference, TagId | Format-List | Out-String).Trim())"
 		$output = Remove-ABInstalledPrograms -PackageIds $keyName, 'No-Such-Package-*' 6>&1 | Out-String
 		Assert-True ($output -match 'No installed package matches No-Such-Package-\*') "Missing package not reported: $output"
 		Assert-True ($output -match 'Uninstalling Autopilot Branding Test Program') "Test program not found: $output"
 		Assert-True ($output -notmatch 'Unable to uninstall') "Uninstall failed: $output"
+		Assert-True ($output -match 'Uninstalled') "Uninstall not confirmed: $output"
 		# The uninstall command may run asynchronously
 		for ($i = 0; $i -lt 30 -and (Test-Path $key); $i++) { Start-Sleep -Seconds 1 }
-		if (Test-Path $key) {
-			# Diagnostics: how does the Programs provider handle it?
-			$diag = Uninstall-Package -Name 'Autopilot Branding Test Program' -ProviderName Programs -RequiredVersion '1.0.0' -Force -Verbose *>&1 | Out-String
-			Write-Host "       Uninstall-Package -Name -Verbose: $diag (key exists: $(Test-Path $key))"
-			$diag = Get-Package -ProviderName Programs -Name 'Autopilot Branding Test Program' | Uninstall-Package -Force -Verbose *>&1 | Out-String
-			Write-Host "       Get-Package | Uninstall-Package -Verbose: $diag (key exists: $(Test-Path $key))"
-		}
 		Assert-True (-not (Test-Path $key)) "The test program's uninstall command was not run: $output"
 		if ($PSVersionTable.PSEdition -eq 'Core') {
 			Assert-True ($null -eq (Get-Command Get-ABWinPSPackage -ErrorAction SilentlyContinue)) 'The Windows PowerShell compatibility module was left loaded'

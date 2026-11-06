@@ -426,3 +426,101 @@ function Get-ABLatestEdgeMsi {
 		HashAlgorithm = $msi.HashAlgorithm
 	}
 }
+
+
+function Get-ABUninstallEntry {
+	<#
+	.SYNOPSIS
+	Returns the uninstall registry values of a Programs provider package (from its FastPackageReference, e.g.
+	hklm64\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<key>), or $null if it no longer
+	exists.  Only per-machine (hklm32/hklm64) entries are supported.
+	#>
+	param (
+		[Parameter(Mandatory = $true)] [string] $FastPackageReference
+	)
+
+	$parts = $FastPackageReference -split '\\', 3
+	if ($parts.Count -ne 3 -or $parts[1] -ne 'HKEY_LOCAL_MACHINE') {
+		return $null
+	}
+	switch ($parts[0].ToLowerInvariant()) {
+		'hklm64' { $view = [Microsoft.Win32.RegistryView]::Registry64 }
+		'hklm32' { $view = [Microsoft.Win32.RegistryView]::Registry32 }
+		default { return $null }
+	}
+	$base = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, $view)
+	try {
+		$key = $base.OpenSubKey($parts[2])
+		if (-not $key) {
+			return $null
+		}
+		try {
+			$values = @{}
+			foreach ($name in $key.GetValueNames()) {
+				$values[$name] = $key.GetValue($name)
+			}
+			return $values
+		}
+		finally {
+			$key.Close()
+		}
+	}
+	finally {
+		$base.Close()
+	}
+}
+
+
+function Invoke-ABUninstallCommand {
+	<#
+	.SYNOPSIS
+	Runs a program's registered uninstall command silently: QuietUninstallString, or an msiexec UninstallString changed
+	to a quiet uninstall (/X ... /qn /norestart).  Returns the exit code; throws if there is no silent command or the
+	command doesn't finish within the timeout (it is then stopped).
+	#>
+	param (
+		[Parameter(Mandatory = $true)] [hashtable] $Entry,
+		[int] $TimeoutSeconds = 600
+	)
+
+	$command = [string]$Entry['QuietUninstallString']
+	if (-not $command.Trim()) {
+		$command = [string]$Entry['UninstallString']
+		if ($command -match '(?i)msiexec(\.exe)?"?\s+/[IX]\s*"?(\{[0-9A-F-]+\})') {
+			$command = "`"$env:SystemRoot\System32\msiexec.exe`" /X $($Matches[2]) /qn /norestart"
+		} else {
+			throw 'No silent uninstall command (QuietUninstallString or msiexec UninstallString) is registered'
+		}
+	}
+	$command = [Environment]::ExpandEnvironmentVariables($command.Trim())
+
+	# Split the command into the program and its arguments
+	if ($command.StartsWith('"')) {
+		$end = $command.IndexOf('"', 1)
+		if ($end -lt 0) {
+			throw "Unable to parse the uninstall command: $command"
+		}
+		$file = $command.Substring(1, $end - 1)
+		$arguments = $command.Substring($end + 1).Trim()
+	} elseif (Test-Path -LiteralPath $command -PathType Leaf) {
+		$file = $command
+		$arguments = ''
+	} elseif ($command -match '^(?<file>.+?\.(exe|cmd|bat))(\s+(?<args>.*))?$') {
+		$file = $Matches['file']
+		$arguments = [string]$Matches['args']
+	} else {
+		$file, $arguments = $command -split '\s+', 2
+	}
+
+	Write-ABLog "  Running: $command"
+	$start = @{ FilePath = $file; PassThru = $true; WindowStyle = 'Hidden' }
+	if ($arguments) {
+		$start.ArgumentList = $arguments
+	}
+	$proc = Start-Process @start
+	if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
+		$proc | Stop-Process -Force -ErrorAction SilentlyContinue
+		throw "The uninstall command didn't finish within $TimeoutSeconds seconds and was stopped"
+	}
+	return $proc.ExitCode
+}

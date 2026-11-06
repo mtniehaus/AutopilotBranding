@@ -117,7 +117,7 @@ The tasks run in the order shown here, which comes from the numeric prefix of ea
 | `Update-ABApps` | Updates in-box apps (Update-InboxApp) and triggers a Store update scan. | UpdateInboxApps, TriggerStoreScan |
 | `Disable-ABFirstLogonAnimation` | Skips the first sign-in animation and the delayed desktop switch. | |
 | `Remove-ABOffice` | Removes all preinstalled Office products using the Office Deployment Tool. | OdtUrl |
-| `Remove-ABInstalledPrograms` | Uninstalls MSI products and programs (`Get-Package -ProviderName msi, Programs`) by name (wildcards allowed) or ID (MSI product code or uninstall key name). On PowerShell 7 it uses PackageManagement through `-UseWindowsPowerShell`, as the MSI and Programs providers only exist in Windows PowerShell. Disabled by default. | PackageIds, ProviderNames |
+| `Remove-ABInstalledPrograms` | Uninstalls MSI products and programs (`Get-Package -ProviderName msi, Programs`) by name (wildcards allowed) or ID (MSI product code or uninstall key name). On PowerShell 7 it uses PackageManagement through `-UseWindowsPowerShell`, as the MSI and Programs providers only exist in Windows PowerShell. Programs entries that remain are removed with their silent uninstall command. Disabled by default. | PackageIds, ProviderNames, TimeoutSeconds |
 
 Each cmdlet has comment-based help (`Get-Help Set-ABTheme -Full`). The builder UI shows the same help text.
 

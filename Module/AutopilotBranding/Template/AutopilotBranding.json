@@ -293,7 +293,8 @@
         "ProviderNames": [
           "msi",
           "Programs"
-        ]
+        ],
+        "TimeoutSeconds": 600
       }
     }
   }
