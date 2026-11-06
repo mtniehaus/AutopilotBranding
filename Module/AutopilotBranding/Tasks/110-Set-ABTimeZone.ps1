@@ -18,15 +18,9 @@ function Set-ABTimeZone {
 		Set-TimeZone -Id $TimeZone
 	} else {
 		Write-ABLog 'Enabling location services for automatic time zone'
-		$consentPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location'
-		$sensorPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}'
-		foreach ($path in $consentPath, $sensorPath) {
-			if (-not (Test-Path $path)) {
-				New-Item -Path $path -Force | Out-Null
-			}
-		}
-		Set-ItemProperty -Path $consentPath -Name 'Value' -Type 'String' -Value 'Allow' -Force
-		Set-ItemProperty -Path $sensorPath -Name 'SensorPermissionState' -Type 'DWord' -Value 1 -Force
+		# Use the same mechanism as the Settings app; directly setting the sensor override registry value gets reverted on newer builds (issue #106)
+		Start-Process -FilePath "$env:windir\System32\SystemSettingsAdminFlows.exe" -ArgumentList 'SetCamSystemGlobal location 1' -Wait -NoNewWindow
 		Start-Service -Name 'lfsvc' -ErrorAction SilentlyContinue
+		Set-Service -Name 'tzautoupdate' -StartupType Automatic -ErrorAction SilentlyContinue
 	}
 }
