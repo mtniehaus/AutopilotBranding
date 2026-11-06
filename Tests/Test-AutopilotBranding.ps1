@@ -460,6 +460,13 @@ Test-Case 'Remove-ABInstalledPrograms uninstalls a program by ID with the Progra
 		Assert-True ($output -notmatch 'Unable to uninstall') "Uninstall failed: $output"
 		# The uninstall command may run asynchronously
 		for ($i = 0; $i -lt 30 -and (Test-Path $key); $i++) { Start-Sleep -Seconds 1 }
+		if (Test-Path $key) {
+			# Diagnostics: how does the Programs provider handle it?
+			$diag = Uninstall-Package -Name 'Autopilot Branding Test Program' -ProviderName Programs -RequiredVersion '1.0.0' -Force -Verbose *>&1 | Out-String
+			Write-Host "       Uninstall-Package -Name -Verbose: $diag (key exists: $(Test-Path $key))"
+			$diag = Get-Package -ProviderName Programs -Name 'Autopilot Branding Test Program' | Uninstall-Package -Force -Verbose *>&1 | Out-String
+			Write-Host "       Get-Package | Uninstall-Package -Verbose: $diag (key exists: $(Test-Path $key))"
+		}
 		Assert-True (-not (Test-Path $key)) "The test program's uninstall command was not run: $output"
 		if ($PSVersionTable.PSEdition -eq 'Core') {
 			Assert-True ($null -eq (Get-Command Get-ABWinPSPackage -ErrorAction SilentlyContinue)) 'The Windows PowerShell compatibility module was left loaded'
