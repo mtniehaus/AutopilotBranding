@@ -11,17 +11,23 @@ function Remove-ABInstalledPrograms {
 	Programs entries are uninstalled with their registered uninstall command, so only programs whose uninstaller runs
 	silently can be removed this way.
 	.PARAMETER PackageIds
-	Names or IDs of the packages to remove, one per line.  Use Get-Package -ProviderName msi, Programs to list the
-	installed packages: the Name column, or the MSI product code / uninstall key name (in FastPackageReference).
+	Names or IDs of the packages to remove, one per line (nothing is removed when empty).  Use
+	Get-Package -ProviderName msi, Programs to list the installed packages: the Name column, or the MSI product code /
+	uninstall key name (in FastPackageReference).
 	.PARAMETER ProviderNames
 	PackageManagement providers to search, one per line.
 	#>
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory = $true)] [string[]] $PackageIds,
+		[Parameter(Mandatory = $false)] [string[]] $PackageIds = @(),
 		[Parameter(Mandatory = $false)] [string[]] $ProviderNames = @('msi', 'Programs')
 	)
 
+	$PackageIds = @($PackageIds | Where-Object { $_ } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+	if ($PackageIds.Count -eq 0) {
+		Write-ABLog 'No package IDs specified, nothing to remove'
+		return
+	}
 	Write-ABLog 'Removing specified installed programs'
 
 	# The MSI and Programs providers only exist in Windows PowerShell.  On PowerShell 7, use the Windows PowerShell
@@ -42,7 +48,7 @@ function Remove-ABInstalledPrograms {
 		Write-ABLog "Found $($packages.Count) installed packages ($($ProviderNames -join ', '))"
 
 		$removed = @{}
-		foreach ($id in ($PackageIds | Where-Object { $_ } | ForEach-Object { $_.Trim() } | Select-Object -Unique)) {
+		foreach ($id in $PackageIds) {
 			$idValue = $id.Trim('{}')
 			$found = @($packages | Where-Object {
 					$refs = @($_.TagId, (([string]$_.FastPackageReference) -split '\\')[-1]) |
@@ -70,7 +76,10 @@ function Remove-ABInstalledPrograms {
 					if ($package.Version) {
 						$uninstall.RequiredVersion = $package.Version
 					}
-					& $uninstallPackage @uninstall | Out-Null
+					$result = @(& $uninstallPackage @uninstall)
+					foreach ($r in $result) {
+						Write-ABLog "  $($r.Name) $($r.Version): $($r.Status)"
+					}
 				}
 				catch {
 					Write-ABLog "  Unable to uninstall $($package.Name): $_"
