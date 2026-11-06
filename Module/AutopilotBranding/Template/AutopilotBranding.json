@@ -285,6 +285,17 @@
       "Parameters": {
         "OdtUrl": "https://officecdn.microsoft.com/pr/wsus/setup.exe"
       }
+    },
+    "Remove-ABInstalledPrograms": {
+      "Enabled": false,
+      "Parameters": {
+        "PackageIds": [],
+        "ProviderNames": [
+          "msi",
+          "Programs"
+        ],
+        "TimeoutSeconds": 600
+      }
     }
   }
 }
