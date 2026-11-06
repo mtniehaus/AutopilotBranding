@@ -34,37 +34,58 @@ function Remove-ABInstalledPrograms {
 	}
 	Write-ABLog 'Removing specified installed programs'
 
-	# The MSI and Programs providers only exist in Windows PowerShell.  On PowerShell 7, use the Windows PowerShell
-	# compatibility session; a prefix keeps its commands separate from PowerShell 7's own PackageManagement module.
+	# The MSI and Programs providers only exist in Windows PowerShell.  On PowerShell 7, import PackageManagement into
+	# the Windows PowerShell compatibility session and run Get-Package / Uninstall-Package there, returning only plain
+	# values (returning the SoftwareIdentity objects through the proxy commands fails).  The prefix keeps the proxy
+	# commands separate from PowerShell 7's own PackageManagement module.
 	$compatModule = $null
+	$session = $null
 	if ($PSVersionTable.PSEdition -eq 'Core') {
 		$compatModule = Import-Module PackageManagement -UseWindowsPowerShell -Prefix ABWinPS -Force -PassThru -WarningAction SilentlyContinue -ErrorAction Stop
-		$getPackage = 'Get-ABWinPSPackage'
-		$uninstallPackage = 'Uninstall-ABWinPSPackage'
+		$session = Get-PSSession -Name 'WinPSCompatSession' -ErrorAction Stop | Where-Object { $_.State -eq 'Opened' } | Select-Object -First 1
+		if (-not $session) {
+			throw 'The Windows PowerShell compatibility session (WinPSCompatSession) is not available'
+		}
+		Write-ABLog 'Using PackageManagement through the Windows PowerShell compatibility session'
 	} else {
 		Import-Module PackageManagement -ErrorAction Stop
-		$getPackage = 'Get-Package'
-		$uninstallPackage = 'Uninstall-Package'
+	}
+	$invoke = {
+		param ([scriptblock] $ScriptBlock, [object[]] $ArgumentList)
+		if ($session) {
+			Invoke-Command -Session $session -ScriptBlock $ScriptBlock -ArgumentList $ArgumentList -ErrorAction Stop
+		} else {
+			& $ScriptBlock @ArgumentList
+		}
+	}
+	$getBlock = {
+		param ([string[]] $Providers)
+		Get-Package -ProviderName $Providers -ErrorAction SilentlyContinue | ForEach-Object {
+			[pscustomobject]@{
+				Name                 = [string]$_.Name
+				Version              = [string]$_.Version
+				ProviderName         = [string]$_.ProviderName
+				FastPackageReference = [string]$_.FastPackageReference
+				TagId                = [string]$_.TagId
+			}
+		}
+	}
+	$uninstallBlock = {
+		param ([hashtable] $Parameters)
+		Uninstall-Package @Parameters | ForEach-Object {
+			[pscustomobject]@{ Name = [string]$_.Name; Version = [string]$_.Version; Status = [string]$_.Status }
+		}
 	}
 
 	try {
-		if ($compatModule) {
-			Write-ABLog "Using PackageManagement through Windows PowerShell ($(@($compatModule)[0].Name) $(@($compatModule)[0].Version))"
-			$providers = @(& 'Get-ABWinPSPackageProvider' -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
-			Write-ABLog "Package providers: $($providers -join ', ')"
-		}
-		$getErrors = $null
-		$packages = @(& $getPackage -ProviderName $ProviderNames -ErrorAction SilentlyContinue -ErrorVariable getErrors)
-		foreach ($e in @($getErrors)) {
-			Write-ABLog "  Get-Package: $e"
-		}
+		$packages = @(& $invoke $getBlock @(, [string[]]$ProviderNames))
 		Write-ABLog "Found $($packages.Count) installed packages ($($ProviderNames -join ', '))"
 
 		$removed = @{}
 		foreach ($id in $PackageIds) {
 			$idValue = $id.Trim('{}')
 			$found = @($packages | Where-Object {
-					$refs = @($_.TagId, (([string]$_.FastPackageReference) -split '\\')[-1]) |
+					$refs = @($_.TagId, ($_.FastPackageReference -split '\\')[-1]) |
 						Where-Object { $_ } | ForEach-Object { ([string]$_).Trim('{}') }
 					($_.Name -like $id) -or ($refs -contains $idValue)
 				})
@@ -89,17 +110,17 @@ function Remove-ABInstalledPrograms {
 					if ($package.Version) {
 						$uninstall.RequiredVersion = $package.Version
 					}
-					$result = @(& $uninstallPackage @uninstall)
+					$result = @(& $invoke $uninstallBlock @(, $uninstall))
 					foreach ($r in $result) {
 						Write-ABLog "  $($r.Name) $($r.Version): $($r.Status)"
 					}
 					if ($package.ProviderName -eq 'Programs') {
-						$entry = Get-ABUninstallEntry -FastPackageReference ([string]$package.FastPackageReference)
+						$entry = Get-ABUninstallEntry -FastPackageReference $package.FastPackageReference
 						if ($entry) {
 							Write-ABLog '  Still registered after Uninstall-Package, running its uninstall command'
 							$exitCode = Invoke-ABUninstallCommand -Entry $entry -TimeoutSeconds $TimeoutSeconds
 							Write-ABLog "  Exit code: $exitCode"
-							if (Get-ABUninstallEntry -FastPackageReference ([string]$package.FastPackageReference)) {
+							if (Get-ABUninstallEntry -FastPackageReference $package.FastPackageReference) {
 								throw "still registered after running its uninstall command (exit code $exitCode)"
 							}
 						}
