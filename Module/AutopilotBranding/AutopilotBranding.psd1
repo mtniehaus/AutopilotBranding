@@ -1,6 +1,6 @@
 @{
 	RootModule           = 'AutopilotBranding.psm1'
-	ModuleVersion        = '4.0.0'
+	ModuleVersion        = '4.0.1'
 	GUID                 = '5d0b2c47-6a8e-4d0f-9a4c-6c2f0b9e8a31'
 	Author               = 'Michael Niehaus'
 	CompanyName          = ''
@@ -27,6 +27,10 @@
 			# the configuration tasks are used and the content prep module isn't needed or installed.
 			ExternalModuleDependencies = @('SvRooij.ContentPrep.Cmdlet')
 			ReleaseNotes = @'
+v4.0.1 - AutopilotBranding.ps1 -LogFolder writes the log to another folder (the Intune detection tag file stays in
+         %ProgramData%\Microsoft\AutopilotBranding).  Set-ABTimeZone enables location services with
+         SystemSettingsAdminFlows (with a registry fallback).  New Remove-ABInstalledPrograms task to uninstall MSI
+         products and programs with PackageManagement.
 v4.0.0 - Restructured the monolithic AutopilotBranding.ps1 script into a module with one cmdlet per
          configuration task.  Settings are now passed as cmdlet parameters (instead of Config.xml);
          a builder UI generates the runner script and output folder.  Includes the v3.3.2 fixes from main
@@ -34,8 +38,7 @@ v4.0.0 - Restructured the monolithic AutopilotBranding.ps1 script into a module 
          more resilient WinGet/feature steps), the new Rename-ABComputer and Set-ABLanguageSettings tasks, and
          the Edge MSI lookup from the edgeupdates API with hash verification (PR #100).  Per-user settings and
          files are also applied to existing user profiles (needed with Autopilot device preparation, where the
-         user's profile exists before apps install).  New Remove-ABInstalledPrograms task to uninstall MSI
-         products and programs with PackageManagement.
+         user's profile exists before apps install).
 v3.3.2 - 2026-11-03 - Fixes for step failures, ARM64, hive unload; optional computer rename and language settings (last version of the monolithic script)
 v3.3.1 - 2025-10-10 - Minor bug fixes
 '@

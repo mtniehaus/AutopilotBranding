@@ -1,6 +1,6 @@
 {
   "name": "autopilot-branding-web",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "private": true,
   "description": "Static web builder for Autopilot Branding: configure tasks, add assets, and generate the .intunewin package in the browser.",
   "license": "MIT",
