@@ -205,7 +205,7 @@ The runner script is the same for every configuration. It ships in the module as
 
 ```powershell
 Import-Module (Join-Path $PSScriptRoot 'AutopilotBranding\AutopilotBranding.psd1') -Force
-if (-not (Start-AutopilotBranding -Force:$Force)) { exit 0 }   # logging, tag file, OOBE check, load default user hive
+if (-not (Start-AutopilotBranding -Force:$Force -LogFolder $LogFolder)) { exit 0 }   # logging, tag file, OOBE check, load default user hive
 try {
 	Invoke-AutopilotBranding -ConfigPath (Join-Path $PSScriptRoot 'AutopilotBranding.json')
 } finally {
@@ -352,8 +352,15 @@ The detection rule should look for the existence of this file:
     Path: %ProgramData%\Microsoft\AutopilotBranding
     File or folder: AutopilotBranding.ps1.tag
 
-The log is written to `%ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log`. By default nothing is
-changed if OOBE has already completed; run `AutopilotBranding.ps1 -Force` to override this.
+The log is written to `%ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.log`. To write it to another
+folder, add `-LogFolder` (a relative path is resolved against the current location):
+
+    powershell.exe -noprofile -executionpolicy bypass -file .\AutopilotBranding.ps1 -LogFolder C:\Windows\Temp\AutopilotBranding
+
+Only the log moves: the tag file for the detection rule is always written to
+`%ProgramData%\Microsoft\AutopilotBranding`, so the uninstall command and detection rule stay the same.
+
+By default nothing is changed if OOBE has already completed; run `AutopilotBranding.ps1 -Force` to override this.
 
 The commands and detection rule are the same as in v3, so you can replace an existing app's content without
 changing how the app is set up.
@@ -474,6 +481,7 @@ parameters point at the files that sit next to the old `Config.xml`.
   - Automated tests run with Windows PowerShell 5.1 and PowerShell 7.6.
 - 2026-11-06: New `Remove-ABInstalledPrograms` task that uninstalls MSI products and programs through PackageManagement
   (disabled by default).
+- 2026-11-07 (v4.0.1): `AutopilotBranding.ps1 -LogFolder` writes the log to another folder.
 
 ## Suggestions?
 

@@ -144,7 +144,9 @@ function Start-AutopilotBranding {
 	.PARAMETER Force
 	Run even if OOBE has already been completed.
 	.PARAMETER LogFolder
-	Folder for the log (transcript) and tag file.
+	Folder for the log (transcript).
+	.PARAMETER TagFolder
+	Folder for the tag file used by the Intune detection rule.
 	.PARAMETER TagFileName
 	Name of the file used by the Intune detection rule.
 	.PARAMETER IncludeExistingProfiles
@@ -158,6 +160,7 @@ function Start-AutopilotBranding {
 	param (
 		[switch] $Force,
 		[string] $LogFolder = "$($env:ProgramData)\Microsoft\AutopilotBranding",
+		[string] $TagFolder = "$($env:ProgramData)\Microsoft\AutopilotBranding",
 		[string] $TagFileName = 'AutopilotBranding.ps1.tag',
 		[bool] $IncludeExistingProfiles = $true
 	)
@@ -172,14 +175,16 @@ function Start-AutopilotBranding {
 	$script:ABOriginalProgressPreference = $global:ProgressPreference
 	$global:ProgressPreference = 'SilentlyContinue'
 
-	if (-not (Test-Path $LogFolder)) {
-		New-Item -Path $LogFolder -ItemType Directory -Force | Out-Null
+	foreach ($folder in @($LogFolder, $TagFolder)) {
+		if (-not (Test-Path $folder)) {
+			New-Item -Path $folder -ItemType Directory -Force | Out-Null
+		}
 	}
 
 	Start-Transcript -Path (Join-Path $LogFolder 'AutopilotBranding.log') | Out-Null
 	$script:ABTranscriptStarted = $true
 
-	Set-Content -Path (Join-Path $LogFolder $TagFileName) -Value 'Installed'
+	Set-Content -Path (Join-Path $TagFolder $TagFileName) -Value 'Installed'
 
 	$module = Get-Module AutopilotBranding
 	Write-ABLog "AutopilotBranding module v$($module.Version) loaded from $($module.ModuleBase)"

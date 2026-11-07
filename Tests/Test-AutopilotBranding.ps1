@@ -371,6 +371,29 @@ Test-Case 'Generated runner script runs (log, tag file, OOBE check) in this Powe
 	Assert-True (Test-Path (Join-Path $logFolder 'AutopilotBranding.ps1.tag')) 'Tag file not created'
 }
 
+Test-Case 'Runner -LogFolder writes the log to another folder (relative to the current location), the tag file stays' {
+	if (-not $isAdmin) {
+		Write-Host '       Skipped: requires elevation (writes to %ProgramData%)' -ForegroundColor Yellow
+		return
+	}
+	$tagFile = "$($env:ProgramData)\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag"
+	Remove-Item $tagFile -Force -ErrorAction SilentlyContinue
+	$logFolder = Join-Path $temp 'CustomLog'
+	Push-Location $temp
+	try {
+		$output = & $psExe -NoProfile -ExecutionPolicy Bypass -File $build.RunnerScript -LogFolder 'CustomLog' 2>&1 | Out-String
+	}
+	finally {
+		Pop-Location
+	}
+	Assert-Equal 0 $LASTEXITCODE "Runner exit code (output: $output)"
+	$logPath = Join-Path $logFolder 'AutopilotBranding.log'
+	Assert-True (Test-Path $logPath) "Log not written to $logFolder (output: $output)"
+	Assert-True ((Get-Content $logPath -Raw) -match 'OOBE is completed, bailing out') 'OOBE check not logged in the custom log'
+	Assert-True (-not (Test-Path (Join-Path $logFolder 'AutopilotBranding.ps1.tag'))) 'Tag file written to the log folder'
+	Assert-True (Test-Path $tagFile) 'Tag file not written to %ProgramData%\Microsoft\AutopilotBranding'
+}
+
 Test-Case 'Existing user profiles are found (and system and OOBE accounts are not)' {
 	$profiles = @(& $module { Get-ABExistingUserProfile })
 	foreach ($p in $profiles) {
