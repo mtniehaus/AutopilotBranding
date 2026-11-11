@@ -17,10 +17,10 @@ function Hide-ABWidgets {
 		Write-ABLog 'Widgets hidden'
 	}
 	catch {
-		if ($_.Exception.Message -notlike '*Access is denied*') {
-			throw
-		}
-		Write-ABLog 'UCPD driver may be active, attempting widget hiding workaround (TaskbarDa)'
+		# Don't test the error text for "Access is denied": reg.exe localizes it (e.g. "Zugriff verweigert" on German
+		# Windows), so the workaround would be skipped there.  Retry with the renamed reg.exe on any failure instead;
+		# if the retry fails too, that error is thrown.
+		Write-ABLog "Hiding widgets failed ($($_.Exception.Message)); UCPD driver may be active, attempting widget hiding workaround (TaskbarDa)"
 		$tempRegExe = "$($env:TEMP)\reg1.exe"
 		Copy-Item -Path (Get-Command reg.exe).Source -Destination $tempRegExe -Force -ErrorAction Stop
 		try {
