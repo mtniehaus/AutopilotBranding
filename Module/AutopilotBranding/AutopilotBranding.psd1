@@ -27,8 +27,8 @@
 			# the configuration tasks are used and the content prep module isn't needed or installed.
 			ExternalModuleDependencies = @('SvRooij.ContentPrep.Cmdlet')
 			ReleaseNotes = @'
-v4.0.3 - Update-ABApps finds the Update-InboxApp script on PowerShell 7 (it was looked for in the Windows PowerShell
-         Scripts folder only).
+v4.0.3 - Update-ABApps works on PowerShell 7: it finds the Update-InboxApp script (it was looked for in the Windows
+         PowerShell Scripts folder only) and runs it in Windows PowerShell, as it uses Windows Runtime APIs.
 v4.0.2 - Hide-ABWidgets applies the UCPD workaround on non-English Windows (the reg.exe error text is localized).
 v4.0.1 - AutopilotBranding.ps1 -LogFolder writes the log to another folder (the Intune detection tag file stays in
          %ProgramData%\Microsoft\AutopilotBranding).  Set-ABTimeZone enables location services with
