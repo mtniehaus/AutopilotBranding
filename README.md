@@ -483,6 +483,7 @@ parameters point at the files that sit next to the old `Config.xml`.
   (disabled by default).
 - 2026-11-07 (v4.0.1): `AutopilotBranding.ps1 -LogFolder` writes the log to another folder.
 - 2026-11-11 (v4.0.2): `Hide-ABWidgets` applies the UCPD workaround on non-English Windows.
+- 2026-11-11 (v4.0.3): `Update-ABApps` finds the Update-InboxApp script on PowerShell 7.
 
 ## Suggestions?
 
