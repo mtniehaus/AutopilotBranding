@@ -23,13 +23,17 @@ function Update-ABApps {
 		}
 		try {
 			Write-ABLog 'Installing Update-InboxApp script'
-			Install-Script Update-InboxApp -Force | Out-Null
+			Install-Script Update-InboxApp -Scope AllUsers -Force -ErrorAction Stop | Out-Null
+
+			# The Scripts folder might not be on the path, and its location depends on the PowerShell edition
+			# (Windows PowerShell vs. PowerShell 7), so ask PowerShellGet where it put the script
+			$installed = Get-InstalledScript -Name Update-InboxApp -ErrorAction Stop | Select-Object -First 1
+			$updateInboxApp = Join-Path $installed.InstalledLocation 'Update-InboxApp.ps1'
 
 			Write-ABLog 'Updating inbox apps'
-			# The path might not be set right to find this, so we'll hard-code the location
 			# Only Store-signed packages can be updated from the Store (system packages just produce errors)
 			Get-AppxPackage -AllUsers | Where-Object { $_.SignatureKind -eq 'Store' } | Select-Object -Unique PackageFamilyName |
-				. "$($env:ProgramFiles)\WindowsPowerShell\Scripts\Update-InboxApp.ps1" -Verbose
+				. $updateInboxApp -Verbose
 		}
 		catch {
 			Write-ABLog "Error updating in-box apps: $_"
