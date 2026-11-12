@@ -451,6 +451,7 @@ async function start(): Promise<void> {
 		return;
 	}
 	document.title = `Autopilot Branding Builder (module v${site.manifest.ModuleVersion})`;
+	$('app-version').textContent = `v${site.manifest.ModuleVersion}`;
 	wireToolbar();
 	setProject(Project.fromTemplate(site), 'New project');
 	// Exposed for automated tests
