@@ -23,17 +23,23 @@ function Update-ABApps {
 		}
 		try {
 			Write-ABLog 'Installing Update-InboxApp script'
-			Install-Script Update-InboxApp -Scope AllUsers -Force -ErrorAction Stop | Out-Null
+			# v1.4 or later is needed on PowerShell 7: it runs the update in a Windows PowerShell 5.1 session itself, as
+			# the Windows Runtime (Store) APIs it uses aren't available in PowerShell 7
+			Install-Script Update-InboxApp -MinimumVersion 1.4 -Scope AllUsers -Force -ErrorAction Stop | Out-Null
 
 			# The Scripts folder might not be on the path, and its location depends on the PowerShell edition
-			# (Windows PowerShell vs. PowerShell 7), so ask PowerShellGet where it put the script
-			$installed = Get-InstalledScript -Name Update-InboxApp -ErrorAction Stop | Select-Object -First 1
+			# (Windows PowerShell vs. PowerShell 7), so ask PowerShellGet where it put the script.  (Indexing instead of
+			# Select-Object -First 1 avoids a "pipeline has been stopped" error record in the transcript.)
+			$installed = @(Get-InstalledScript -Name Update-InboxApp -ErrorAction Stop)[0]
 			$updateInboxApp = Join-Path $installed.InstalledLocation 'Update-InboxApp.ps1'
 
-			Write-ABLog 'Updating inbox apps'
-			# Only Store-signed packages can be updated from the Store (system packages just produce errors)
+			Write-ABLog "Updating inbox apps (Update-InboxApp v$($installed.Version))"
+			# Only Store-signed packages can be updated from the Store (system packages just produce errors).  Run the
+			# script with & rather than dot-sourcing it: it needs its own script scope (on PowerShell 7 it re-runs
+			# itself from $PSCommandPath in the Windows PowerShell session), and its variables and helper function
+			# shouldn't land in this function's scope.
 			Get-AppxPackage -AllUsers | Where-Object { $_.SignatureKind -eq 'Store' } | Select-Object -Unique PackageFamilyName |
-				. $updateInboxApp -Verbose
+				& $updateInboxApp -Verbose
 		}
 		catch {
 			Write-ABLog "Error updating in-box apps: $_"

@@ -1,6 +1,6 @@
 @{
 	RootModule           = 'AutopilotBranding.psm1'
-	ModuleVersion        = '4.0.3'
+	ModuleVersion        = '4.0.4'
 	GUID                 = '5d0b2c47-6a8e-4d0f-9a4c-6c2f0b9e8a31'
 	Author               = 'Michael Niehaus'
 	CompanyName          = ''
@@ -27,6 +27,8 @@
 			# the configuration tasks are used and the content prep module isn't needed or installed.
 			ExternalModuleDependencies = @('SvRooij.ContentPrep.Cmdlet')
 			ReleaseNotes = @'
+v4.0.4 - Update-ABApps works on PowerShell 7: it installs Update-InboxApp v1.4 or later (which runs the update in a
+         Windows PowerShell 5.1 session itself) and runs it in its own scope instead of dot-sourcing it.
 v4.0.3 - Update-ABApps finds the Update-InboxApp script on PowerShell 7 (it was looked for in the Windows PowerShell
          Scripts folder only).
 v4.0.2 - Hide-ABWidgets applies the UCPD workaround on non-English Windows (the reg.exe error text is localized).
