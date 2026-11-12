@@ -38,8 +38,20 @@ function Update-ABApps {
 			# script with & rather than dot-sourcing it: it needs its own script scope (on PowerShell 7 it re-runs
 			# itself from $PSCommandPath in the Windows PowerShell session), and its variables and helper function
 			# shouldn't land in this function's scope.
+			# On PowerShell 7 the script's messages come back from its Windows PowerShell session through Invoke-Command,
+			# and they show at the console but don't end up in the transcript.  So merge all of its streams into the
+			# output and log each message, as the task's own messages are.
 			Get-AppxPackage -AllUsers | Where-Object { $_.SignatureKind -eq 'Store' } | Select-Object -Unique PackageFamilyName |
-				& $updateInboxApp -Verbose
+				& $updateInboxApp -Verbose *>&1 | ForEach-Object {
+					$prefix = switch ($_) {
+						{ $_ -is [System.Management.Automation.VerboseRecord] } { 'VERBOSE: '; break }
+						{ $_ -is [System.Management.Automation.WarningRecord] } { 'WARNING: '; break }
+						{ $_ -is [System.Management.Automation.DebugRecord] } { 'DEBUG: '; break }
+						{ $_ -is [System.Management.Automation.ErrorRecord] } { 'ERROR: '; break }
+						default { '' }
+					}
+					Write-ABLog "$prefix$_"
+				}
 		}
 		catch {
 			Write-ABLog "Error updating in-box apps: $_"
