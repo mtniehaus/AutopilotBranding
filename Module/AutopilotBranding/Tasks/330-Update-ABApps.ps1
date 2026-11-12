@@ -23,9 +23,10 @@ function Update-ABApps {
 		}
 		try {
 			Write-ABLog 'Installing Update-InboxApp script'
-			# v1.4 or later is needed on PowerShell 7: it runs the update in a Windows PowerShell 5.1 session itself, as
-			# the Windows Runtime (Store) APIs it uses aren't available in PowerShell 7
-			Install-Script Update-InboxApp -MinimumVersion 1.4 -Scope AllUsers -Force -ErrorAction Stop | Out-Null
+			# v1.5 or later is needed on PowerShell 7: it runs the update in a Windows PowerShell 5.1 session itself, as
+			# the Windows Runtime (Store) APIs it uses aren't available in PowerShell 7 (v1.4+), and it returns that
+			# session's messages as normal stream records so they can be logged (v1.5+)
+			Install-Script Update-InboxApp -MinimumVersion 1.5 -Scope AllUsers -Force -ErrorAction Stop | Out-Null
 
 			# The Scripts folder might not be on the path, and its location depends on the PowerShell edition
 			# (Windows PowerShell vs. PowerShell 7), so ask PowerShellGet where it put the script.  (Indexing instead of
@@ -38,9 +39,8 @@ function Update-ABApps {
 			# script with & rather than dot-sourcing it: it needs its own script scope (on PowerShell 7 it re-runs
 			# itself from $PSCommandPath in the Windows PowerShell session), and its variables and helper function
 			# shouldn't land in this function's scope.
-			# On PowerShell 7 the script's messages come back from its Windows PowerShell session through Invoke-Command,
-			# and they show at the console but don't end up in the transcript.  So merge all of its streams into the
-			# output and log each message, as the task's own messages are.
+			# Merge all of the script's streams into the output and log each message, as the task's own messages are, so
+			# they're in the log even if the transcript doesn't capture them.
 			Get-AppxPackage -AllUsers | Where-Object { $_.SignatureKind -eq 'Store' } | Select-Object -Unique PackageFamilyName |
 				& $updateInboxApp -Verbose *>&1 | ForEach-Object {
 					$prefix = switch ($_) {
