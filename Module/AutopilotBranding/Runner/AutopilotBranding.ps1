@@ -16,23 +16,30 @@ Run the tasks even if OOBE has already been completed.
 .PARAMETER LogFolder
 Folder for the log (AutopilotBranding.log).  Defaults to the usual location,
 %ProgramData%\Microsoft\AutopilotBranding.  A relative path is resolved against the current location.  The tag file
-used by the Intune detection rule is always written to %ProgramData%\Microsoft\AutopilotBranding.
+used by the Intune detection rule is not affected (see -TagFile).
+
+.PARAMETER TagFile
+Full path of the tag file used by the Intune detection rule.  Defaults to the usual location,
+%ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag.  A relative path is resolved against the current
+location.  If you change it, change the app's uninstall command and detection rule to match.
 #>
 
 [CmdletBinding()]
 param (
 	[Parameter(Mandatory = $false)] [Switch] $Force = $false,
-	[Parameter(Mandatory = $false)] [string] $LogFolder = "$($env:ProgramData)\Microsoft\AutopilotBranding"
+	[Parameter(Mandatory = $false)] [string] $LogFolder = "$($env:ProgramData)\Microsoft\AutopilotBranding",
+	[Parameter(Mandatory = $false)] [string] $TagFile = "$($env:ProgramData)\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag"
 )
 
 $LogFolder = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($LogFolder)
+$TagFile = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($TagFile)
 
 # If we are running as a 32-bit process on an x64 system, re-launch as a 64-bit process
 if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64") {
 	if (Test-Path "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe") {
 		$relaunchArgs = @('-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', $PSCommandPath)
 		if ($Force) { $relaunchArgs += '-Force' }
-		$relaunchArgs += @('-LogFolder', $LogFolder)
+		$relaunchArgs += @('-LogFolder', $LogFolder, '-TagFile', $TagFile)
 		& "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe" @relaunchArgs
 		exit $LASTEXITCODE
 	}
@@ -40,7 +47,13 @@ if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64") {
 
 Import-Module (Join-Path $PSScriptRoot 'AutopilotBranding\AutopilotBranding.psd1') -Force
 
-if (-not (Start-AutopilotBranding -Force:$Force -LogFolder $LogFolder)) {
+$startArgs = @{
+	Force       = $Force
+	LogFolder   = $LogFolder
+	TagFolder   = Split-Path -Path $TagFile -Parent
+	TagFileName = Split-Path -Path $TagFile -Leaf
+}
+if (-not (Start-AutopilotBranding @startArgs)) {
 	exit 0
 }
 

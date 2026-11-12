@@ -1,6 +1,6 @@
 @{
 	RootModule           = 'AutopilotBranding.psm1'
-	ModuleVersion        = '4.0.6'
+	ModuleVersion        = '4.0.7'
 	GUID                 = '5d0b2c47-6a8e-4d0f-9a4c-6c2f0b9e8a31'
 	Author               = 'Michael Niehaus'
 	CompanyName          = ''
@@ -27,6 +27,8 @@
 			# the configuration tasks are used and the content prep module isn't needed or installed.
 			ExternalModuleDependencies = @('SvRooij.ContentPrep.Cmdlet')
 			ReleaseNotes = @'
+v4.0.7 - AutopilotBranding.ps1 -TagFile writes the Intune detection tag file to another path (the default is
+         unchanged: %ProgramData%\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag).
 v4.0.6 - Update-ABApps requires Update-InboxApp v1.5 or later, which returns the messages from its Windows PowerShell
          5.1 session on PowerShell 7 so they're written to the log.
 v4.0.5 - Update-ABApps writes the Update-InboxApp messages to the log (on PowerShell 7 they were only shown at the

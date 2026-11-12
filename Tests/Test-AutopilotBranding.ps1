@@ -394,6 +394,26 @@ Test-Case 'Runner -LogFolder writes the log to another folder (relative to the c
 	Assert-True (Test-Path $tagFile) 'Tag file not written to %ProgramData%\Microsoft\AutopilotBranding'
 }
 
+Test-Case 'Runner -TagFile writes the tag file to another path (relative to the current location)' {
+	if (-not $isAdmin) {
+		Write-Host '       Skipped: requires elevation (writes to %ProgramData%)' -ForegroundColor Yellow
+		return
+	}
+	$defaultTagFile = "$($env:ProgramData)\Microsoft\AutopilotBranding\AutopilotBranding.ps1.tag"
+	Remove-Item $defaultTagFile -Force -ErrorAction SilentlyContinue
+	$tagFile = Join-Path $temp 'CustomTag\Custom.tag'
+	Push-Location $temp
+	try {
+		$output = & $psExe -NoProfile -ExecutionPolicy Bypass -File $build.RunnerScript -TagFile 'CustomTag\Custom.tag' 2>&1 | Out-String
+	}
+	finally {
+		Pop-Location
+	}
+	Assert-Equal 0 $LASTEXITCODE "Runner exit code (output: $output)"
+	Assert-True (Test-Path $tagFile) "Tag file not written to $tagFile (output: $output)"
+	Assert-True (-not (Test-Path $defaultTagFile)) 'Tag file also written to the default location'
+}
+
 Test-Case 'Existing user profiles are found (and system and OOBE accounts are not)' {
 	$profiles = @(& $module { Get-ABExistingUserProfile })
 	foreach ($p in $profiles) {
