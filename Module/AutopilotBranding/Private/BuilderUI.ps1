@@ -86,10 +86,15 @@ function Set-Dirty([bool] $Dirty = $true) {
 	Update-Title
 }
 
+function Get-ABBuilderVersion {
+	# Version of the loaded AutopilotBranding module, shown in the builder's title and status bar
+	return [string]$ExecutionContext.SessionState.Module.Version
+}
+
 function Update-Title {
 	$name = if ($State.ConfigPath) { $State.ConfigPath } else { '(not saved yet - save to create a project folder)' }
 	$marker = if ($State.Dirty) { ' *' } else { '' }
-	$window.Title = "Autopilot Branding Builder - $name$marker"
+	$window.Title = "Autopilot Branding Builder v$(Get-ABBuilderVersion) - $name$marker"
 }
 
 function Update-Status {
@@ -599,6 +604,9 @@ function Initialize-ABBuilderWindow {
       </ToolBar>
     </ToolBarTray>
     <StatusBar DockPanel.Dock="Bottom">
+      <StatusBarItem DockPanel.Dock="Right">
+        <TextBlock x:Name="VersionText" Foreground="#666666" ToolTip="AutopilotBranding module version"/>
+      </StatusBarItem>
       <StatusBarItem>
         <TextBlock x:Name="StatusText"/>
       </StatusBarItem>
@@ -637,11 +645,12 @@ function Initialize-ABBuilderWindow {
 
 	$script:window = [System.Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
 	$script:ui = @{}
-	foreach ($name in 'NewProjectButton', 'NewButton', 'OpenButton', 'SaveButton', 'SaveAsButton', 'ImportButton', 'ValidateButton', 'StatusText',
+	foreach ($name in 'NewProjectButton', 'NewButton', 'OpenButton', 'SaveButton', 'SaveAsButton', 'ImportButton', 'ValidateButton', 'StatusText', 'VersionText',
 		'GenerateButton', 'BrowseOutputButton', 'OutputPathBox', 'NoneButton', 'AllButton', 'TaskList', 'DetailPanel') {
 		$ui[$name] = $window.FindName($name)
 	}
 	$ui.OutputPathBox.Text = $OutputPath
+	$ui.VersionText.Text = "v$(Get-ABBuilderVersion)"
 
 	#endregion
 

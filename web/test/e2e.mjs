@@ -54,6 +54,11 @@ try {
 		await page.waitForFunction((count) => document.querySelectorAll('#task-list li').length === count, tasks.length);
 	});
 
+	await step('header shows the module version', async () => {
+		const manifest = JSON.parse(readFileSync(join(root, 'data', 'manifest.json'), 'utf8'));
+		assert.equal(await page.textContent('#app-version'), `v${manifest.ModuleVersion}`);
+	});
+
 	await step('text parameter edit', async () => {
 		await page.click('#task-list li[data-task="Set-ABRegisteredOwner"]');
 		await page.fill('[data-parameter="Owner"] input', 'E2E Owner');

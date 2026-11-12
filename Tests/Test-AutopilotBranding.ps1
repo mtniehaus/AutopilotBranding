@@ -141,7 +141,7 @@ Test-Case 'Exports the cmdlets, tasks and builder functions, and nothing private
 	$private = @('Get-Value', 'Get-List', 'Get-File', 'Invoke-ABHiveUnload', 'Show-ABUIMessage', 'Initialize-ABBuilderWindow',
 		'ConvertTo-ABFullPath', 'Test-ABArm64', 'Set-ABRegistryValue', 'Get-ABAstValue', 'Show-TaskDetail', 'Invoke-Safely',
 		'Update-ABAssetBase', 'Copy-ABItemNoOverwrite', 'Test-ABPathUnder', 'Get-DialogFolder', 'Copy-ABProjectAsset',
-		'Get-ABProjectAssetTarget', 'Set-AssetFromSelection', 'Test-ABSameContent')
+		'Get-ABProjectAssetTarget', 'Set-AssetFromSelection', 'Test-ABSameContent', 'Get-ABBuilderVersion')
 	$leaked = @($private | Where-Object { $exported -contains $_ })
 	Assert-True ($leaked.Count -eq 0) "Private functions exported: $($leaked -join ', ')"
 }
@@ -592,6 +592,11 @@ Test-Case 'Builder UI loads and its controls update the configuration' {
 			if ($State.ConfigPath) { throw 'Expected the unsaved default template' }
 			if (-not $State.Configuration.Tasks['Set-ABTheme'].Enabled) { throw 'Default template not loaded' }
 			if ($ui.OutputPathBox.Text) { throw 'Output folder set for an unsaved configuration' }
+			# The module version is shown in the title and the status bar
+			$version = [string]$ExecutionContext.SessionState.Module.Version
+			if (-not $version) { throw 'Module version not found' }
+			if ($ui.VersionText.Text -ne "v$version") { throw "Status bar shows '$($ui.VersionText.Text)', expected v$version" }
+			if ($window.Title -notlike "Autopilot Branding Builder v$version - *") { throw "Unexpected window title '$($window.Title)'" }
 
 			# Every task's details render (editors for every parameter type)
 			foreach ($name in $TaskNames) { Select-Task $name }
