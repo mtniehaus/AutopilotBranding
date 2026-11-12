@@ -205,7 +205,7 @@ The runner script is the same for every configuration. It ships in the module as
 
 ```powershell
 Import-Module (Join-Path $PSScriptRoot 'AutopilotBranding\AutopilotBranding.psd1') -Force
-if (-not (Start-AutopilotBranding -Force:$Force -LogFolder $LogFolder)) { exit 0 }   # logging, tag file, OOBE check, load default user hive
+if (-not (Start-AutopilotBranding @startArgs)) { exit 0 }      # logging, tag file, OOBE check, load default user hive
 try {
 	Invoke-AutopilotBranding -ConfigPath (Join-Path $PSScriptRoot 'AutopilotBranding.json')
 } finally {
@@ -357,8 +357,13 @@ folder, add `-LogFolder` (a relative path is resolved against the current locati
 
     powershell.exe -noprofile -executionpolicy bypass -file .\AutopilotBranding.ps1 -LogFolder C:\Windows\Temp\AutopilotBranding
 
-Only the log moves: the tag file for the detection rule is always written to
+Only the log moves: the tag file for the detection rule is still written to
 `%ProgramData%\Microsoft\AutopilotBranding`, so the uninstall command and detection rule stay the same.
+
+To write the tag file somewhere else, add `-TagFile` with its full path (a relative path is resolved against the
+current location), and change the uninstall command and detection rule to match:
+
+    powershell.exe -noprofile -executionpolicy bypass -file .\AutopilotBranding.ps1 -TagFile C:\ProgramData\Contoso\Branding.tag
 
 By default nothing is changed if OOBE has already completed; run `AutopilotBranding.ps1 -Force` to override this.
 
@@ -487,6 +492,7 @@ parameters point at the files that sit next to the old `Config.xml`.
 - 2026-11-12 (v4.0.4): `Update-ABApps` works on PowerShell 7 (uses Update-InboxApp v1.4 or later).
 - 2026-11-12 (v4.0.5): `Update-ABApps` writes the Update-InboxApp messages to the log.
 - 2026-11-12 (v4.0.6): `Update-ABApps` requires Update-InboxApp v1.5 or later, so its messages are logged on PowerShell 7.
+- 2026-11-12 (v4.0.7): `AutopilotBranding.ps1 -TagFile` writes the Intune detection tag file to another path.
 
 ## Suggestions?
 
