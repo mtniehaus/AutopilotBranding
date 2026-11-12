@@ -485,6 +485,7 @@ parameters point at the files that sit next to the old `Config.xml`.
 - 2026-11-11 (v4.0.2): `Hide-ABWidgets` applies the UCPD workaround on non-English Windows.
 - 2026-11-11 (v4.0.3): `Update-ABApps` finds the Update-InboxApp script on PowerShell 7.
 - 2026-11-12 (v4.0.4): `Update-ABApps` works on PowerShell 7 (uses Update-InboxApp v1.4 or later).
+- 2026-11-12 (v4.0.5): `Update-ABApps` writes the Update-InboxApp messages to the log.
 
 ## Suggestions?
 
