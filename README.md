@@ -442,6 +442,8 @@ automatically. Supported parameter types are `[string]`, `[string[]]`, `[bool]`,
 folder that should be copied into the package. Use the helpers in `Private\Common.ps1`, such as
 `Set-ABRegistryValue -Hive DefaultUser`, `Copy-ABFile`, and `Write-ABLog`, to stay consistent with the other tasks.
 
+For a step-by-step guide with examples, including running a script you already have, see [CUSTOMIZING.md](CUSTOMIZING.md).
+
 ## Migrating from v3 (Config.xml)
 
 Use **Import Config.xml...** in the UI, or:
