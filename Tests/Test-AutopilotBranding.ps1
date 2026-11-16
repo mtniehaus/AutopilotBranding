@@ -414,6 +414,32 @@ Test-Case 'Runner -TagFile writes the tag file to another path (relative to the 
 	Assert-True (-not (Test-Path $defaultTagFile)) 'Tag file also written to the default location'
 }
 
+Test-Case 'OOBE decision: runs during OOBE, with -Force, and after Autopilot Reset (no user profiles), skips otherwise' {
+	$decide = { param ($oobe, $force, $count) & $module { param ($o, $f, $c) Get-ABOOBEDecision -OOBEComplete $o -Force:$f -UserProfileCount $c } $oobe $force $count }
+	Assert-Equal 'Run' (& $decide $false $false 3) 'OOBE not completed'
+	Assert-Equal 'Force' (& $decide $true $true 3) 'OOBE completed, -Force'
+	Assert-Equal 'NoUserProfiles' (& $decide $true $false 0) 'OOBE completed, no user profiles (Autopilot Reset)'
+	Assert-Equal 'Skip' (& $decide $true $false 1) 'OOBE completed, user profiles exist'
+}
+
+Test-Case 'OneDrive silent sign-in state values are removed, other values are kept' {
+	$key = 'HKCU:\Software\ABTest-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+	New-Item -Path $key -Force | Out-Null
+	try {
+		foreach ($n in 'OneAuthUnrecoverableTimestamp', 'ClientEverSignedIn', 'SilentBusinessConfigCompleted', 'KeepMe') {
+			New-ItemProperty -Path $key -Name $n -Value 1 -PropertyType DWord -Force | Out-Null
+		}
+		& $module { param ($k) Clear-ABOneDriveSilentConfigState -RegistryPath $k -Name 'test' } $key 6>&1 | Out-Null
+		$names = @((Get-Item -Path $key).GetValueNames())
+		Assert-Equal @('KeepMe') $names 'Remaining values'
+		# A missing key is not an error
+		& $module { param ($k) Clear-ABOneDriveSilentConfigState -RegistryPath "$k\Missing" } $key
+	}
+	finally {
+		Remove-Item -Path $key -Recurse -Force -ErrorAction SilentlyContinue
+	}
+}
+
 Test-Case 'Existing user profiles are found (and system and OOBE accounts are not)' {
 	$profiles = @(& $module { Get-ABExistingUserProfile })
 	foreach ($p in $profiles) {

@@ -189,13 +189,30 @@ function Start-AutopilotBranding {
 	$module = Get-Module AutopilotBranding
 	Write-ABLog "AutopilotBranding module v$($module.Version) loaded from $($module.ModuleBase)"
 
-	if (Test-ABOOBEComplete) {
-		if (-not $Force) {
+	$oobeComplete = Test-ABOOBEComplete
+	$userProfileCount = 0
+	if ($oobeComplete -and -not $Force) {
+		try {
+			$userProfileCount = @(Get-ABExistingUserProfile -ErrorAction Stop).Count
+		}
+		catch {
+			# If the profiles can't be checked, assume the device is in use and don't change it
+			Write-ABLog "Unable to check for existing user profiles: $_"
+			$userProfileCount = -1
+		}
+	}
+	switch (Get-ABOOBEDecision -OOBEComplete $oobeComplete -Force:$Force -UserProfileCount $userProfileCount) {
+		'Skip' {
 			Write-ABLog 'OOBE is completed, bailing out without doing any configuration.'
 			Stop-AutopilotBranding
 			return $false
 		}
-		Write-ABLog 'OOBE is completed but -Force specified, will run anyway.'
+		'Force' {
+			Write-ABLog 'OOBE is completed but -Force specified, will run anyway.'
+		}
+		'NoUserProfiles' {
+			Write-ABLog 'OOBE is completed but no user has signed in yet (e.g. after Autopilot Reset), will run anyway.'
+		}
 	}
 
 	try {

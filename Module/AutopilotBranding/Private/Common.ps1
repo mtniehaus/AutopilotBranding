@@ -345,6 +345,60 @@ namespace AutopilotBranding
 }
 
 
+function Get-ABOOBEDecision {
+	<#
+	.SYNOPSIS
+	Decides whether the configuration tasks run, based on the OOBE state.
+	.DESCRIPTION
+	The tasks normally only run while the device is in OOBE, so that they don't change a device that is already in use.
+	After Autopilot Reset, Windows doesn't go through OOBE again, but no user has signed in yet either (the reset
+	removes the user profiles); the tasks run then too, so the device is branded again before the next user signs in.
+	.OUTPUTS
+	'Run' (OOBE isn't completed), 'Force' (completed, but -Force), 'NoUserProfiles' (completed, but no user profiles
+	exist yet) or 'Skip'.
+	#>
+	[CmdletBinding()]
+	[OutputType([string])]
+	param (
+		[Parameter(Mandatory = $true)] [bool] $OOBEComplete,
+		[switch] $Force,
+		[int] $UserProfileCount = 0
+	)
+
+	if (-not $OOBEComplete) { return 'Run' }
+	if ($Force) { return 'Force' }
+	if ($UserProfileCount -eq 0) { return 'NoUserProfiles' }
+	return 'Skip'
+}
+
+
+function Clear-ABOneDriveSilentConfigState {
+	<#
+	.SYNOPSIS
+	Removes the per-user OneDrive values that stop silent account configuration from being tried again.
+	.PARAMETER RegistryPath
+	The user's Software\Microsoft\OneDrive key (PowerShell provider path).
+	.PARAMETER Name
+	Description of the user hive, for the log.
+	#>
+	[CmdletBinding()]
+	param (
+		[Parameter(Mandatory = $true)] [string] $RegistryPath,
+		[string] $Name = ''
+	)
+
+	if (-not (Test-Path -Path $RegistryPath)) {
+		return
+	}
+	foreach ($valueName in @('OneAuthUnrecoverableTimestamp', 'ClientEverSignedIn', 'PersonalUnlinkedTimeStamp', 'SilentBusinessConfigCompleted')) {
+		if ($null -ne (Get-ItemProperty -Path $RegistryPath -Name $valueName -ErrorAction SilentlyContinue)) {
+			Write-ABLog "Removing OneDrive value '$valueName' so silent sign-in runs again ($Name)"
+			Remove-ItemProperty -Path $RegistryPath -Name $valueName -Force
+		}
+	}
+}
+
+
 function Copy-ABFile {
 	<#
 	.SYNOPSIS
