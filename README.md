@@ -404,6 +404,16 @@ The log, the tag file and the `-Force` behavior are the same as with Intune (see
   override the default user profile settings.
 - To make apps (not just Windows) use dark mode, add `AppMode=Dark` below `SystemMode=Dark` in the `[VisualStyles]`
   section of `Autopilot.theme`.
+- Edge isn't pinned to the taskbar on recent Windows 11 builds with `<taskbar:DesktopApp DesktopApplicationID="MSEdge"/>`:
+  pin it by its Start menu shortcut instead,
+  `<taskbar:DesktopApp DesktopApplicationLinkPath="%ALLUSERSPROFILE%\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk" PinGeneration="1"/>`.
+  Increase `PinGeneration` whenever you change the layout so Windows applies it again.
+- Autopilot Reset: Windows doesn't go through OOBE again after a reset, but the tasks still run as long as no user
+  has signed in yet (no user profiles exist). On a device that already has user profiles, they only run with `-Force`.
+- OneDrive doesn't sign in silently after `Install-ABOneDrive`: the task removes the per-user values
+  (`OneAuthUnrecoverableTimestamp`, `ClientEverSignedIn`, `PersonalUnlinkedTimeStamp`,
+  `SilentBusinessConfigCompleted`) that stop silent account configuration from running again. Silent sign-in itself
+  still needs the "Silently sign in users to the OneDrive sync app with their Windows credentials" policy.
 - Edge update: `Update-ABEdge` looks up the latest Stable Edge MSI for the device's architecture (x64 or ARM64)
   from the edgeupdates.microsoft.com API and verifies its hash before installing. If the lookup fails, it falls
   back to `Url` (x64) or `ArmUrl` (ARM64); with no `ArmUrl`, the update is then skipped on ARM64. ARM64 devices

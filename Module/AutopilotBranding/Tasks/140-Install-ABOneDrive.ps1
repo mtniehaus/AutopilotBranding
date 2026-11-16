@@ -55,6 +55,10 @@ function Install-ABOneDrive {
 			# OneDriveSetup should set this but it can take an additional reboot; this starts OneDrive at first sign-in.
 			Write-ABLog "Setting OneDrive to autostart from the machine-wide location ($($root.Name))"
 			New-ItemProperty -Path $regRunPath -Name 'OneDrive' -Value "`"$oneDriveExe`" /background" -PropertyType String -Force | Out-Null
+
+			# Values left by an earlier OneDrive run stop silent account configuration (SSO with the Windows
+			# credentials) from being tried again; remove them so the reinstalled client signs in silently.
+			Clear-ABOneDriveSilentConfigState -RegistryPath "$(ConvertTo-ABProviderPath $root.Root)\Software\Microsoft\OneDrive" -Name $root.Name
 		}
 	}
 	finally {
